@@ -287,3 +287,4 @@ LocalAIStack 将 **本地 AI 计算视为基础设施**，而不是一组工具�
 * [模块系统与清单规范（英文版）](./docs/modules.md)
 * [硬件能力与策略映射（英文版）](./docs/policies.md)
 * [运行时执行模型（英文版）](./docs/runtime.md)
+* [功能列表](./docs/features.cn.md)
