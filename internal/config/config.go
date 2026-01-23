@@ -45,7 +45,7 @@ type RuntimeConfig struct {
 	DefaultMode   string `mapstructure:"default_mode"`
 }
 
-func Default() *Config {
+func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
 			Host:         "0.0.0.0",
@@ -76,7 +76,7 @@ func Default() *Config {
 	}
 }
 
-func Load() (*Config, error) {
-	cfg := Default()
+func LoadConfig() (*Config, error) {
+	cfg := DefaultConfig()
 	return cfg, nil
 }

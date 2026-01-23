@@ -4,6 +4,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	// Initialize commands package
+}
+
 func RegisterModuleCommands(rootCmd *cobra.Command) {
 	moduleCmd := &cobra.Command{
 		Use:   "module",
