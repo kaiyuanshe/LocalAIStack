@@ -118,6 +118,7 @@ Core AI inference engines managed by LocalAIStack.
 | **P1** | vLLM Runtime Module | vLLM installation, multi-GPU support | Runtime Layer |
 | **P1** | SGLang Runtime Module | SGLang installation, high-throughput inference | Runtime Layer |
 | **P2** | OpenVINO Runtime Module | OpenVINO integration (Intel-specific) | Runtime Layer |
+| **P1** | Minimal Model Management | Support runtime or simple CLI model download/management; document model directory layout (aligned with full model management in Phase 9) | State Manager + Runtime Layer |
 | **P2** | Runtime Health Management | Monitor inference engine health, auto-restart | Health Reporting |
 | **P2** | Runtime Performance Profiling | Collect performance metrics from runtimes | Runtime Layer |
 
