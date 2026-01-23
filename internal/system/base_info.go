@@ -1,42 +1,28 @@
 package system
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"time"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/system/info"
 )
 
-type BaseInfo struct {
-	CollectedAt string `json:"collected_at"`
-	Hostname    string `json:"hostname"`
-	OS          string `json:"os"`
-	Arch        string `json:"arch"`
-	CPUs        int    `json:"cpus"`
-	GoVersion   string `json:"go_version"`
-	User        string `json:"user"`
-	HomeDir     string `json:"home_dir"`
-}
-
 func WriteBaseInfo(outputPath, format string, force, appendMode bool) error {
-	resolvedPath, err := expandHome(outputPath)
+	resolvedPath, err := resolveOutputPath(outputPath)
 	if err != nil {
 		return err
 	}
 	if err := ensureWritable(resolvedPath, force, appendMode); err != nil {
 		return err
 	}
-	info, err := collectBaseInfo()
-	if err != nil {
-		return err
-	}
 
-	content, err := formatBaseInfo(info, format)
+	report, rawOutputs := info.CollectBaseInfoWithRaw(context.Background())
+	content, err := formatBaseInfo(report, rawOutputs, format)
 	if err != nil {
 		return err
 	}
@@ -61,45 +47,12 @@ func WriteBaseInfo(outputPath, format string, force, appendMode bool) error {
 	return nil
 }
 
-func collectBaseInfo() (BaseInfo, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return BaseInfo{}, fmt.Errorf("get hostname: %w", err)
-	}
-
-	currentUser, err := user.Current()
-	if err != nil {
-		return BaseInfo{}, fmt.Errorf("get current user: %w", err)
-	}
-
-	return BaseInfo{
-		CollectedAt: time.Now().Format(time.RFC3339),
-		Hostname:    hostname,
-		OS:          runtime.GOOS,
-		Arch:        runtime.GOARCH,
-		CPUs:        runtime.NumCPU(),
-		GoVersion:   runtime.Version(),
-		User:        currentUser.Username,
-		HomeDir:     currentUser.HomeDir,
-	}, nil
-}
-
-func formatBaseInfo(info BaseInfo, format string) (string, error) {
+func formatBaseInfo(report info.BaseInfo, rawOutputs []info.RawCommandOutput, format string) (string, error) {
 	switch strings.ToLower(format) {
 	case "md", "markdown":
-		return fmt.Sprintf(`# LocalAIStack Base Info
-
-- Collected At: %s
-- Hostname: %s
-- OS: %s
-- Arch: %s
-- CPUs: %d
-- Go Version: %s
-- User: %s
-- Home Directory: %s
-`, info.CollectedAt, info.Hostname, info.OS, info.Arch, info.CPUs, info.GoVersion, info.User, info.HomeDir), nil
+		return info.RenderBaseInfoMarkdown(report, rawOutputs), nil
 	case "json":
-		payload, err := json.MarshalIndent(info, "", "  ")
+		payload, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("marshal json: %w", err)
 		}
@@ -109,19 +62,26 @@ func formatBaseInfo(info BaseInfo, format string) (string, error) {
 	}
 }
 
-func expandHome(path string) (string, error) {
+func resolveOutputPath(path string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home dir: %w", err)
+	}
+	baseDir := filepath.Join(home, ".localaistack")
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return "", fmt.Errorf("create base directory: %w", err)
+	}
 	if path == "" {
-		return "", errors.New("output path is required")
+		return filepath.Join(baseDir, "base_info.md"), nil
 	}
 	if path == "~" || strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("get home dir: %w", err)
-		}
 		if path == "~" {
-			return home, nil
+			return baseDir, nil
 		}
 		return filepath.Join(home, strings.TrimPrefix(path, "~/")), nil
+	}
+	if !filepath.IsAbs(path) {
+		return filepath.Join(baseDir, path), nil
 	}
 	return path, nil
 }
