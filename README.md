@@ -1,5 +1,7 @@
 # LocalAIStack
 
+[中文说明](README.cn.md)
+
 **LocalAIStack** is an open, modular software stack for building and operating **local AI workstations**.
 
 It provides a unified control layer to install, manage, upgrade, and operate AI development environments, inference runtimes, models, and applications on local hardware — without relying on cloud services or vendor-specific platforms.
