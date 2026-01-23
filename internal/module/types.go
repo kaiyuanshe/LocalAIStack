@@ -10,38 +10,39 @@ const (
 	CategoryFramework   Category = "framework"
 	CategoryService     Category = "service"
 	CategoryApplication Category = "application"
-	CategoryTool       Category = "tool"
+	CategoryTool        Category = "tool"
 	CategoryModel       Category = "model"
 )
 
 type State string
 
 const (
-	StateAvailable State = "available"
-	StateResolved  State = "resolved"
-	StateInstalled State = "installed"
-	StateRunning   State = "running"
-	StateStopped   State = "stopped"
-	StateFailed    State = "failed"
+	StateAvailable  State = "available"
+	StateResolved   State = "resolved"
+	StateInstalled  State = "installed"
+	StateRunning    State = "running"
+	StateStopped    State = "stopped"
+	StateFailed     State = "failed"
 	StateDeprecated State = "deprecated"
 )
 
 type Manifest struct {
-	Name        string            `yaml:"name"`
-	Category    Category          `yaml:"category"`
-	Version     string            `yaml:"version"`
-	Description string            `yaml:"description"`
-	License     string            `yaml:"license,omitempty"`
-	Hardware    HardwareReq       `yaml:"hardware"`
-	Dependencies Dependencies      `yaml:"dependencies"`
-	Runtime     RuntimeConfig      `yaml:"runtime"`
-	Interfaces  InterfaceConfig   `yaml:"interfaces"`
+	Name         string          `yaml:"name"`
+	Category     Category        `yaml:"category"`
+	Version      string          `yaml:"version"`
+	Description  string          `yaml:"description"`
+	License      string          `yaml:"license,omitempty"`
+	Hardware     HardwareReq     `yaml:"hardware"`
+	Dependencies Dependencies    `yaml:"dependencies"`
+	Runtime      RuntimeConfig   `yaml:"runtime"`
+	Interfaces   InterfaceConfig `yaml:"interfaces"`
+	Integrity    Integrity       `yaml:"integrity,omitempty"`
 }
 
 type HardwareReq struct {
-	CPU *CPUReq `yaml:"cpu,omitempty"`
+	CPU    *CPUReq    `yaml:"cpu,omitempty"`
 	Memory *MemoryReq `yaml:"memory,omitempty"`
-	GPU *GPUReq `yaml:"gpu,omitempty"`
+	GPU    *GPUReq    `yaml:"gpu,omitempty"`
 }
 
 type CPUReq struct {
@@ -64,8 +65,8 @@ type Dependencies struct {
 }
 
 type RuntimeConfig struct {
-	Modes    []string `yaml:"modes"`
-	Preferred string  `yaml:"preferred,omitempty"`
+	Modes     []string `yaml:"modes"`
+	Preferred string   `yaml:"preferred,omitempty"`
 }
 
 type InterfaceConfig struct {
@@ -73,9 +74,14 @@ type InterfaceConfig struct {
 	Consumes []string `yaml:"consumes,omitempty"`
 }
 
+type Integrity struct {
+	Checksum  string `yaml:"checksum,omitempty"`
+	Signature string `yaml:"signature,omitempty"`
+}
+
 type Module struct {
-	Manifest Manifest
-	State   State
+	Manifest    Manifest
+	State       State
 	InstalledAt time.Time
-	Version string
+	Version     string
 }

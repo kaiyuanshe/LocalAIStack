@@ -71,6 +71,23 @@ Each module exists in one of the following states:
 
 State transitions are managed exclusively by the Control Layer.
 
+### 4.1 State Machine
+
+Allowed transitions:
+
+| From → To | Notes |
+| --- | --- |
+| `available` → `resolved` | Dependencies are resolved |
+| `resolved` → `installed` | Installation completed |
+| `installed` → `running` | Runtime started |
+| `installed` → `stopped` | Installed but idle |
+| `running` → `stopped` | Runtime stopped |
+| `stopped` → `running` | Runtime resumed |
+| `*` → `failed` | Error during lifecycle |
+| `*` → `deprecated` | Deprecated/removed from registry |
+
+The control layer may also move a failed module back to `resolved` after remediation.
+
 ---
 
 ## 5. Manifest Overview
@@ -105,6 +122,9 @@ runtime:
 interfaces:
   provides:
     - openai-compatible-api
+
+integrity:
+  checksum: sha256:...
 ```
 
 ---
@@ -148,6 +168,7 @@ dependencies:
     - package-name
   modules:
     - module-name
+    - module-name@>=1.2.3
   runtime:
     - runtime-constraint
 ```
@@ -185,7 +206,57 @@ Interfaces are logical contracts, not network bindings.
 
 ---
 
-## 7. Versioning and Compatibility
+### 6.6 Integrity Metadata
+
+```yaml
+integrity:
+  checksum: sha256:...
+  signature: <optional detached signature>
+```
+
+If a checksum is provided, the registry validates it before accepting the manifest.
+
+---
+
+## 7. Manifest Schema (YAML)
+
+LocalAIStack publishes a machine-readable schema for validation at:
+
+* [`docs/modules.schema.yaml`](./modules.schema.yaml)
+
+This schema is used by the registry validator to ensure manifests are complete and consistent.
+
+---
+
+## 8. Module Registry
+
+The registry is the source of truth for available modules. It:
+
+* Loads manifests from a registry directory
+* Validates schema and integrity metadata
+* Stores multiple versions per module
+* Exposes a version-aware lookup API
+
+Manifests can be grouped by category or vendor inside the registry directory, as long as
+each manifest file is discoverable.
+
+---
+
+## 9. Dependency Resolution & Conflict Handling
+
+Dependencies are resolved before installation planning.
+
+* Each module may depend on other modules using optional version constraints.
+* The resolver selects the newest compatible version available.
+* If a dependency cannot be satisfied, resolution fails with a conflict error.
+* Cycles are detected and rejected.
+
+The resolver outputs a topologically sorted installation plan so dependencies are installed
+before dependents.
+
+---
+
+## 10. Versioning and Compatibility
 
 * Modules are versioned independently
 * Compatibility is validated at resolution time
@@ -193,7 +264,7 @@ Interfaces are logical contracts, not network bindings.
 
 ---
 
-## 8. Extension Model
+## 11. Extension Model
 
 New modules can be added by:
 
@@ -204,7 +275,7 @@ No core code modification is required.
 
 ---
 
-## 9. Non-Goals
+## 12. Non-Goals
 
 * Modules do not embed secrets
 * Modules do not perform installation logic
@@ -212,7 +283,7 @@ No core code modification is required.
 
 ---
 
-## 10. Summary
+## 13. Summary
 
 The module system ensures LocalAIStack remains:
 

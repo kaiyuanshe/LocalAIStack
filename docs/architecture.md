@@ -234,8 +234,12 @@ Each module is described by a manifest containing:
 * Dependencies
 * Runtime constraints
 * Exposed interfaces
+* Optional integrity metadata (checksum/signature)
 
 Modules are **self-describing** and **independently versioned**.
+
+The module registry loads manifests, validates schema/integrity, and resolves
+dependency graphs to produce install plans with explicit version selection.
 
 ---
 
