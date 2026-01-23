@@ -220,6 +220,9 @@ User interfaces for system management and interaction.
 |----------|---------|-------------|--------------|
 | **P0** | REST API Server | RESTful API for all control operations | Control Layer |
 | **P0** | CLI Framework | Command-line interface framework | Control Layer |
+| **P0** | Authentication & Authorization (RBAC/Token/Local Users) | Access control and identity management for interfaces | Control Layer, Config Management |
+| **P0** | Secrets/Credential Management (API Tokens/Third-Party Credentials) | Secure storage and rotation of interface credentials | Config Management, Control Layer |
+| **P1** | Audit Logs (Sensitive Operations) | Traceable audit logging for critical actions | Logging & Monitoring, AuthN/AuthZ |
 | **P1** | Web UI Framework | Web application framework for management UI | REST API |
 | **P1** | Web UI - Dashboard | Main dashboard showing system status | Web UI Framework |
 | **P1** | Web UI - Module Management | Install/uninstall/upgrade modules | Web UI Framework |
@@ -297,7 +300,9 @@ Focus on Tier 2 (≈30B) local inference workflows:
 3. **Phase 2**: Module System (1 week)
 4. **Phase 3**: Runtime Layer (1 week)
 5. **Phase 5**: Ollama & llama.cpp (1 week)
-6. **Phase 11**: Basic CLI + REST API (1 week)
+6. **Phase 11**: Basic CLI + REST API + Security Baseline (authn/authz, credential management, audit logs) (1 week)
+   - **Rationale**: MVP needs minimal access control, credential protection, and sensitive action traceability to avoid shipping an insecure surface.
+   - **Dependencies**: Config Management, Logging & Monitoring, Control Layer.
 
 **Outcome**: Capable of installing and managing Ollama/llama.cpp with hardware-aware policies.
 
