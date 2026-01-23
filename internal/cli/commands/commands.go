@@ -1,7 +1,10 @@
 package commands
 
 import (
+	"errors"
+
 	"github.com/spf13/cobra"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
 )
 
 func init() {
@@ -129,6 +132,43 @@ func RegisterSystemCommands(rootCmd *cobra.Command) {
 		Short: "System management",
 	}
 
+	initCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Collect base system info and write to ~/.localaistack/base_info.md",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			output, err := cmd.Flags().GetString("output")
+			if err != nil {
+				return err
+			}
+			force, err := cmd.Flags().GetBool("force")
+			if err != nil {
+				return err
+			}
+			appendMode, err := cmd.Flags().GetBool("append")
+			if err != nil {
+				return err
+			}
+			if appendMode && force {
+				return errors.New("cannot use --force with --append")
+			}
+			format, err := cmd.Flags().GetString("format")
+			if err != nil {
+				return err
+			}
+
+			if err := system.WriteBaseInfo(output, format, force, appendMode); err != nil {
+				return err
+			}
+
+			cmd.Printf("Base system info written to %s\n", output)
+			return nil
+		},
+	}
+	initCmd.Flags().String("output", "~/.localaistack/base_info.md", "output path for base info")
+	initCmd.Flags().Bool("force", false, "overwrite existing file")
+	initCmd.Flags().Bool("append", false, "append to existing file")
+	initCmd.Flags().String("format", "md", "output format: md or json")
+
 	detectCmd := &cobra.Command{
 		Use:   "detect",
 		Short: "Detect hardware capabilities",
@@ -145,6 +185,7 @@ func RegisterSystemCommands(rootCmd *cobra.Command) {
 		},
 	}
 
+	systemCmd.AddCommand(initCmd)
 	systemCmd.AddCommand(detectCmd)
 	systemCmd.AddCommand(infoCmd)
 	rootCmd.AddCommand(systemCmd)
