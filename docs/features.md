@@ -19,6 +19,8 @@ These features form the foundation for all other functionality. They must be imp
 | Priority | Feature | Description | Dependencies |
 |----------|---------|-------------|--------------|
 | **P0** | Project Structure & Build System | Initialize repository structure, CI/CD, packaging system | None |
+| **P0** | Test Frameworks & Quality Gates | Unit/integration/regression testing with coverage and benchmark thresholds | Project Structure & Build System |
+| **P0** | Compatibility Matrix & Acceptance Criteria | OS/GPU/driver/runtime compatibility matrix and acceptance standards | Project Structure & Build System |
 | **P0** | Configuration Management | Centralized configuration system for all components | None |
 | **P0** | Logging & Monitoring | Structured logging, metrics collection, health checks | None |
 | **P0** | Core Control Layer Framework | Base framework for hardware detection, policy evaluation, state management | Config, Logging |
@@ -296,6 +298,7 @@ Intel AOG (AIPC Open Gateway) is an API gateway that can provide additional valu
 Focus on Tier 2 (≈30B) local inference workflows:
 
 1. **Phase 0**: Foundation (1 week)
+   - **Note**: Complete test frameworks/quality gates and the compatibility matrix/acceptance criteria alongside CI/CD.
 2. **Phase 1**: Control Layer Core (2 weeks)
 3. **Phase 2**: Module System (1 week)
 4. **Phase 3**: Runtime Layer (1 week)
