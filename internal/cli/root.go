@@ -3,10 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/zhuangbiaowei/LocalAIStack/internal/cli/commands"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/cli/commands"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 )
 
 var rootCmd = &cobra.Command{
@@ -43,21 +45,21 @@ func init() {
 }
 
 func initConfig() {
+	viper.SetEnvPrefix(config.EnvPrefix)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
 	if cfgFile := viper.GetString("config"); cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
+	} else if envConfig := os.Getenv(config.EnvConfigFile); envConfig != "" {
+		viper.SetConfigFile(envConfig)
 	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
-			os.Exit(1)
+		for _, path := range config.DefaultConfigPaths() {
+			viper.AddConfigPath(path)
 		}
-		viper.AddConfigPath(home)
-		viper.AddConfigPath(".")
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".localaistack")
+		viper.SetConfigName(config.DefaultConfigFileName)
 	}
-
-	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
 		if viper.GetString("config") != "" {
