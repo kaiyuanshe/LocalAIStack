@@ -46,186 +46,25 @@ LocalAIStack is built around the following principles:
 
 ---
 
+## Documentation
+
+The detailed technical design now lives in the `docs/` directory to keep the README concise and consistent.
+
+* [Architecture](./docs/architecture.md)
+* [Module System and Manifest Specification](./docs/modules.md)
+* [Hardware Capability and Policy Mapping](./docs/policies.md)
+* [Runtime Execution Model](./docs/runtime.md)
+
+---
+
 ## What LocalAIStack Provides
 
-LocalAIStack is not a single application.
-It is a **stacked system** composed of coordinated layers.
+LocalAIStack is a layered system for managing local AI workstations end to end. At a high level it delivers:
 
-### 1. System and Environment Management
-
-* Supported operating systems:
-
-  * Ubuntu 22.04 LTS
-  * Ubuntu 24.04 LTS
-* GPU driver and CUDA compatibility management
-* System-level package and mirror configuration
-* Safe upgrades and rollback mechanisms
-
----
-
-### 2. Programming Language Environments (On Demand)
-
-* Python (multiple versions, isolated environments)
-* Java (OpenJDK 8 / 11 / 17)
-* Node.js (LTS, version-managed)
-* Ruby
-* PHP
-* Rust
-
-All language environments are:
-
-* Optional
-* Isolated
-* Upgradable
-* Removable without system pollution
-
----
-
-### 3. Local AI Inference Runtimes
-
-Supported inference engines include:
-
-* Ollama
-* llama.cpp
-* vLLM
-* SGLang
-
-Availability is automatically gated by hardware capability (e.g. GPU memory, interconnects).
-
----
-
-### 4. AI Development Frameworks
-
-* PyTorch
-* TensorFlow (optional)
-* Hugging Face Transformers
-* LangChain
-* LangGraph
-
-Framework versions are aligned with installed runtimes and CUDA configurations.
-
----
-
-### 5. Data and Infrastructure Services
-
-Optional local services for AI development and RAG workflows:
-
-* PostgreSQL
-* MySQL
-* Redis
-* ClickHouse
-* Nginx
-
-All services support:
-
-* One-click start/stop
-* Persistent data directories
-* Local-only or network-accessible modes
-
----
-
-### 6. AI Applications
-
-Curated open-source AI applications, deployed as managed services:
-
-* RAGFlow
-* ComfyUI
-* open-deep-research
-* (Extensible via manifests)
-
-Each application includes:
-
-* Dependency isolation
-* Port management
-* Unified access endpoints
-
----
-
-### 7. Developer Tools
-
-* VS Code (local server mode)
-* Aider
-* OpenCode
-* RooCode
-
-Tools are integrated but not mandatory.
-
----
-
-### 8. Model Management
-
-LocalAIStack provides a unified model management layer:
-
-* Model sources:
-
-  * Hugging Face
-  * ModelScope
-* Supported formats:
-
-  * GGUF
-  * safetensors
-* Capabilities:
-
-  * Search
-  * Download
-  * Integrity verification
-  * Hardware compatibility checks
-
----
-
-## Hardware Capability Awareness
-
-LocalAIStack classifies hardware into capability tiers and automatically adapts available features.
-
-Example tiers:
-
-* **Tier 1**: Entry-level (≤14B inference)
-* **Tier 2**: Mid-range (≈30B inference)
-* **Tier 3**: High-end (≥70B, multi-GPU, NVLink)
-
-Users never install software that their hardware cannot reliably run.
-
----
-
-## User Interface
-
-LocalAIStack provides:
-
-* A web-based management interface
-* A CLI for advanced users
-
-### Internationalization
-
-* Built-in multilingual UI support
-* Optional AI-assisted interface translation
-* No hardcoded language assumptions
-
----
-
-## Architecture Overview
-
-```
-LocalAIStack
-├── Control Layer
-│   ├── Hardware Detection
-│   ├── Capability Policy Engine
-│   ├── Package & Version Management
-│
-├── Runtime Layer
-│   ├── Container-based execution
-│   ├── Native high-performance paths
-│
-├── Software Modules
-│   ├── Languages
-│   ├── Inference Engines
-│   ├── Frameworks
-│   ├── Services
-│   └── Applications
-│
-└── Interfaces
-    ├── Web UI
-    └── CLI
-```
+* Deterministic installation, upgrades, and rollbacks for local AI environments
+* Hardware-aware runtime selection and policy gating
+* Modular components that can be enabled or removed independently
+* Unified interfaces for managing runtimes, services, and applications
 
 ---
 
@@ -280,11 +119,3 @@ It aims to make local AI systems:
 * Maintainable
 * Understandable
 * Long-lived
-
-
----
-
-[Architecture](./docs/architecture.md)
-[Module System and Manifest Specification](./docs/modules.md)
-[Hardware Capability and Policy Mapping](./docs/policies.md)
-[Runtime Execution Model](./docs/runtime.md)

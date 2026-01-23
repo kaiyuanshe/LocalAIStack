@@ -46,186 +46,25 @@ LocalAIStack 围绕以下原则构建：
 
 ---
 
+## 文档
+
+更详细的技术设计已整理到 `docs/` 目录，以保持 README 简洁且一致：
+
+* [架构设计（英文版）](./docs/architecture.md)
+* [模块系统与清单规范（英文版）](./docs/modules.md)
+* [硬件能力与策略映射（英文版）](./docs/policies.md)
+* [运行时执行模型（英文版）](./docs/runtime.md)
+
+---
+
 ## LocalAIStack 提供什么
 
-LocalAIStack 不是单一应用。
-它是一个由多层协同组成的 **堆叠式系统**。
+LocalAIStack 是面向本地 AI 工作站的分层系统，整体提供：
 
-### 1. 系统与环境管理
-
-* 支持的操作系统：
-
-  * Ubuntu 22.04 LTS
-  * Ubuntu 24.04 LTS
-* GPU 驱动与 CUDA 兼容性管理
-* 系统级包管理与镜像配置
-* 安全升级与回滚机制
-
----
-
-### 2. 编程语言环境（按需）
-
-* Python（多版本，隔离环境）
-* Java（OpenJDK 8 / 11 / 17）
-* Node.js（LTS，版本管理）
-* Ruby
-* PHP
-* Rust
-
-所有语言环境均为：
-
-* 可选
-* 隔离
-* 可升级
-* 可在不污染系统的情况下移除
-
----
-
-### 3. 本地 AI 推理运行时
-
-支持的推理引擎包括：
-
-* Ollama
-* llama.cpp
-* vLLM
-* SGLang
-
-可用性会根据硬件能力（如 GPU 显存、互联带宽）自动限制。
-
----
-
-### 4. AI 开发框架
-
-* PyTorch
-* TensorFlow（可选）
-* Hugging Face Transformers
-* LangChain
-* LangGraph
-
-框架版本与已安装运行时和 CUDA 配置保持一致。
-
----
-
-### 5. 数据与基础设施服务
-
-用于 AI 开发和 RAG 工作流的可选本地服务：
-
-* PostgreSQL
-* MySQL
-* Redis
-* ClickHouse
-* Nginx
-
-所有服务支持：
-
-* 一键启动/停止
-* 持久化数据目录
-* 仅本地或可网络访问模式
-
----
-
-### 6. AI 应用
-
-精选的开源 AI 应用，以受管服务形式部署：
-
-* RAGFlow
-* ComfyUI
-* open-deep-research
-* （可通过清单扩展）
-
-每个应用包含：
-
-* 依赖隔离
-* 端口管理
-* 统一访问入口
-
----
-
-### 7. 开发者工具
-
-* VS Code（本地服务器模式）
-* Aider
-* OpenCode
-* RooCode
-
-工具已集成但非强制使用。
-
----
-
-### 8. 模型管理
-
-LocalAIStack 提供统一的模型管理层：
-
-* 模型来源：
-
-  * Hugging Face
-  * ModelScope
-* 支持格式：
-
-  * GGUF
-  * safetensors
-* 能力：
-
-  * 搜索
-  * 下载
-  * 完整性校验
-  * 硬件兼容性检查
-
----
-
-## 硬件能力感知
-
-LocalAIStack 将硬件划分为能力等级，并自动适配可用功能。
-
-示例等级：
-
-* **Tier 1**：入门级（≤14B 推理）
-* **Tier 2**：中端（≈30B 推理）
-* **Tier 3**：高端（≥70B，多 GPU，NVLink）
-
-用户不会安装其硬件无法可靠运行的软件。
-
----
-
-## 用户界面
-
-LocalAIStack 提供：
-
-* 基于 Web 的管理界面
-* 面向高级用户的 CLI
-
-### 国际化
-
-* 内置多语言 UI 支持
-* 可选 AI 辅助界面翻译
-* 无硬编码语言假设
-
----
-
-## 架构概览
-
-```
-LocalAIStack
-├── Control Layer
-│   ├── Hardware Detection
-│   ├── Capability Policy Engine
-│   ├── Package & Version Management
-│
-├── Runtime Layer
-│   ├── Container-based execution
-│   ├── Native high-performance paths
-│
-├── Software Modules
-│   ├── Languages
-│   ├── Inference Engines
-│   ├── Frameworks
-│   ├── Services
-│   └── Applications
-│
-└── Interfaces
-    ├── Web UI
-    └── CLI
-```
+* 可确定的安装、升级与回滚路径
+* 与硬件能力绑定的运行时选择与策略控制
+* 可独立启用或移除的模块化组件
+* 管理运行时、服务与应用的统一入口
 
 ---
 
@@ -280,10 +119,3 @@ LocalAIStack 将 **本地 AI 计算视为基础设施**，而不是一组工具�
 * 易维护
 * 易理解
 * 可长期使用
-
----
-
-* [架构设计（英文版）](./docs/architecture.md)
-* [模块系统与清单规范（英文版）](./docs/modules.md)
-* [硬件能力与策略映射（英文版）](./docs/policies.md)
-* [运行时执行模型（英文版）](./docs/runtime.md)
