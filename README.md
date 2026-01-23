@@ -280,3 +280,11 @@ It aims to make local AI systems:
 * Maintainable
 * Understandable
 * Long-lived
+
+
+---
+
+[Architecture](./docs/architecture.md)
+[Module System and Manifest Specification](./docs/modules.md)
+[Hardware Capability and Policy Mapping](./docs/policies.md)
+[Runtime Execution Model](./docs/runtime.md)
