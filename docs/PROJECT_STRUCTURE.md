@@ -199,9 +199,15 @@ Each command in `cmd/` is a self-contained binary:
 
 Configuration is loaded in order of precedence (highest to lowest):
 1. Command-line flags
-2. Environment variables
-3. Configuration file (`~/.localaistack/config.yaml` or `--config` flag)
+2. Environment variables (`LOCALAISTACK_*`)
+3. Configuration file (`--config`, `$LOCALAISTACK_CONFIG`, or default paths)
 4. Default values in code
+
+Default search paths include:
+- `$HOME/.localaistack/config.yaml`
+- `./configs/config.yaml`
+- `./config.yaml`
+- `/etc/localaistack/config.yaml`
 
 ## Dependency Management
 

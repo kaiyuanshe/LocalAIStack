@@ -7,6 +7,7 @@ CLI_BINARY=$(BINARY_NAME)
 BUILD_DIR=build
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
 LDFLAGS=-ldflags "-X github.com/zhuangbiaowei/LocalAIStack/internal/config.Version=$(VERSION) -s -w"
+COVERAGE_THRESHOLD ?= 40
 
 # Go parameters
 GOCMD=go
@@ -97,6 +98,9 @@ test:
 test-coverage: test
 	@echo "Coverage report:"
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@coverage=$$($(GOCMD) tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $$3); print $$3}'); \
+	echo "Total coverage: $$coverage%"; \
+	awk -v coverage="$$coverage" -v threshold="$(COVERAGE_THRESHOLD)" 'BEGIN { if (coverage + 0 < threshold) { printf "Coverage %s%% is below threshold %s%%\\n", coverage, threshold; exit 1 } }'
 
 .PHONY: fmt
 fmt:

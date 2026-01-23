@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/control"
-	"github.com/rs/zerolog/log"
 )
 
 type Server struct {
@@ -57,5 +57,5 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"running","version":"0.1.0-dev"}`))
+	w.Write([]byte(fmt.Sprintf(`{"status":"running","version":"%s"}`, config.Version)))
 }
