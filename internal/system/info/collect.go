@@ -36,6 +36,13 @@ type BaseInfo struct {
 	RuntimeCapabilities string   `json:"runtime_capabilities"`
 }
 
+type RawCommandOutput struct {
+	Command string `json:"command"`
+	Stdout  string `json:"stdout,omitempty"`
+	Stderr  string `json:"stderr,omitempty"`
+	Err     string `json:"error,omitempty"`
+}
+
 func CollectBaseInfo(ctx context.Context) BaseInfo {
 	if ctx == nil {
 		ctx = context.Background()
@@ -62,12 +69,50 @@ func CollectBaseInfo(ctx context.Context) BaseInfo {
 	return info
 }
 
+func CollectBaseInfoWithRaw(ctx context.Context) (BaseInfo, []RawCommandOutput) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var rawOutputs []RawCommandOutput
+	info := BaseInfo{
+		CollectedAt:         time.Now().Format(time.RFC3339),
+		OS:                  runtime.GOOS,
+		Arch:                runtime.GOARCH,
+		CPUCores:            runtime.NumCPU(),
+		LocalAIStackVersion: config.Version,
+	}
+
+	info.Kernel, rawOutputs = kernelInfoWithRaw(ctx, rawOutputs)
+	info.CPUModel, rawOutputs = cpuModelWithRaw(ctx, rawOutputs)
+	info.MemoryTotal, rawOutputs = memoryTotalWithRaw(ctx, rawOutputs)
+	info.GPU, rawOutputs = gpuInfoWithRaw(ctx, rawOutputs)
+	info.DiskTotal, info.DiskAvailable = diskInfo()
+	rawOutputs = append(rawOutputs, diskInfoRaw(ctx)...)
+	info.Hostname = hostname()
+	info.InternalIPs = internalIPs()
+	rawOutputs = append(rawOutputs, networkInfoRaw(ctx)...)
+	info.Docker, rawOutputs = runtimeAvailabilityWithRaw(ctx, rawOutputs, "docker")
+	info.Podman, rawOutputs = runtimeAvailabilityWithRaw(ctx, rawOutputs, "podman")
+	info.RuntimeCapabilities = runtimeCapabilities(info.Docker, info.Podman)
+
+	return info, rawOutputs
+}
+
 func kernelInfo(ctx context.Context) string {
 	stdout, stderr, err := runCommand(ctx, "uname", "-a")
 	if err != nil {
 		return formatUnknown("uname", err, stderr)
 	}
 	return strings.TrimSpace(stdout)
+}
+
+func kernelInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
+	stdout, stderr, err := runCommand(ctx, "uname", "-a")
+	rawOutputs = append(rawOutputs, newRawOutput("uname -a", stdout, stderr, err))
+	if err != nil {
+		return formatUnknown("uname", err, stderr), rawOutputs
+	}
+	return strings.TrimSpace(stdout), rawOutputs
 }
 
 func cpuModel(ctx context.Context) string {
@@ -101,6 +146,40 @@ func cpuModel(ctx context.Context) string {
 		return strings.TrimSpace(stdout)
 	default:
 		return "unknown: unsupported OS"
+	}
+}
+
+func cpuModelWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
+	switch runtime.GOOS {
+	case "linux":
+		data, raw := readFileRaw("/proc/cpuinfo")
+		rawOutputs = append(rawOutputs, raw)
+		if raw.Err != "" {
+			return formatUnknown("/proc/cpuinfo", errors.New(raw.Err), ""), rawOutputs
+		}
+		scanner := bufio.NewScanner(strings.NewReader(data))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(strings.ToLower(line), "model name") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					return strings.TrimSpace(parts[1]), rawOutputs
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return formatUnknown("/proc/cpuinfo", err, ""), rawOutputs
+		}
+		return "unknown: cpu model not found", rawOutputs
+	case "darwin":
+		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "machdep.cpu.brand_string")
+		rawOutputs = append(rawOutputs, newRawOutput("sysctl -n machdep.cpu.brand_string", stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("sysctl", err, stderr), rawOutputs
+		}
+		return strings.TrimSpace(stdout), rawOutputs
+	default:
+		return "unknown: unsupported OS", rawOutputs
 	}
 }
 
@@ -139,6 +218,41 @@ func memoryTotal(ctx context.Context) string {
 	}
 }
 
+func memoryTotalWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
+	switch runtime.GOOS {
+	case "linux":
+		data, raw := readFileRaw("/proc/meminfo")
+		rawOutputs = append(rawOutputs, raw)
+		if raw.Err != "" {
+			return formatUnknown("/proc/meminfo", errors.New(raw.Err), ""), rawOutputs
+		}
+		scanner := bufio.NewScanner(strings.NewReader(data))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "MemTotal:") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 {
+					value := fields[1]
+					return fmt.Sprintf("%s kB", value), rawOutputs
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return formatUnknown("/proc/meminfo", err, ""), rawOutputs
+		}
+		return "unknown: meminfo missing MemTotal", rawOutputs
+	case "darwin":
+		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "hw.memsize")
+		rawOutputs = append(rawOutputs, newRawOutput("sysctl -n hw.memsize", stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("sysctl", err, stderr), rawOutputs
+		}
+		return fmt.Sprintf("%s bytes", strings.TrimSpace(stdout)), rawOutputs
+	default:
+		return "unknown: unsupported OS", rawOutputs
+	}
+}
+
 func gpuInfo(ctx context.Context) string {
 	switch runtime.GOOS {
 	case "linux":
@@ -167,6 +281,39 @@ func gpuInfo(ctx context.Context) string {
 		return strings.Join(matches, "; ")
 	default:
 		return "unknown: unsupported OS"
+	}
+}
+
+func gpuInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
+	switch runtime.GOOS {
+	case "linux":
+		stdout, stderr, err := runCommand(ctx, "nvidia-smi", "--query-gpu=name", "--format=csv,noheader")
+		rawOutputs = append(rawOutputs, newRawOutput("nvidia-smi --query-gpu=name --format=csv,noheader", stdout, stderr, err))
+		if err == nil {
+			gpu := strings.TrimSpace(stdout)
+			if gpu != "" {
+				return gpu, rawOutputs
+			}
+		}
+
+		stdout, stderr, err = runCommand(ctx, "lspci")
+		rawOutputs = append(rawOutputs, newRawOutput("lspci", stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("lspci", err, stderr), rawOutputs
+		}
+		var matches []string
+		for _, line := range strings.Split(stdout, "\n") {
+			lower := strings.ToLower(line)
+			if strings.Contains(lower, "vga") || strings.Contains(lower, "3d") {
+				matches = append(matches, strings.TrimSpace(line))
+			}
+		}
+		if len(matches) == 0 {
+			return "unknown: no GPU entries", rawOutputs
+		}
+		return strings.Join(matches, "; "), rawOutputs
+	default:
+		return "unknown: unsupported OS", rawOutputs
 	}
 }
 
@@ -230,6 +377,19 @@ func runtimeAvailability(ctx context.Context, runtimeName string) string {
 	return fmt.Sprintf("available: %s", trimmed)
 }
 
+func runtimeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutput, runtimeName string) (string, []RawCommandOutput) {
+	stdout, stderr, err := runCommand(ctx, runtimeName, "version")
+	rawOutputs = append(rawOutputs, newRawOutput(fmt.Sprintf("%s version", runtimeName), stdout, stderr, err))
+	if err != nil {
+		return formatUnknown(runtimeName, err, stderr), rawOutputs
+	}
+	trimmed := strings.TrimSpace(stdout)
+	if trimmed == "" {
+		return "available", rawOutputs
+	}
+	return fmt.Sprintf("available: %s", trimmed), rawOutputs
+}
+
 func runtimeCapabilities(dockerStatus, podmanStatus string) string {
 	return fmt.Sprintf("docker=%s; podman=%s", dockerStatus, podmanStatus)
 }
@@ -255,6 +415,35 @@ func extractIP(addr net.Addr) string {
 		}
 	}
 	return ""
+}
+
+func diskInfoRaw(ctx context.Context) []RawCommandOutput {
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		stdout, stderr, err := runCommand(ctx, "df", "-h", "/")
+		return []RawCommandOutput{newRawOutput("df -h /", stdout, stderr, err)}
+	default:
+		return []RawCommandOutput{{
+			Command: "df -h /",
+			Err:     "unsupported OS",
+		}}
+	}
+}
+
+func networkInfoRaw(ctx context.Context) []RawCommandOutput {
+	switch runtime.GOOS {
+	case "linux":
+		stdout, stderr, err := runCommand(ctx, "ip", "addr")
+		return []RawCommandOutput{newRawOutput("ip addr", stdout, stderr, err)}
+	case "darwin":
+		stdout, stderr, err := runCommand(ctx, "ifconfig")
+		return []RawCommandOutput{newRawOutput("ifconfig", stdout, stderr, err)}
+	default:
+		return []RawCommandOutput{{
+			Command: "network info",
+			Err:     "unsupported OS",
+		}}
+	}
 }
 
 func runCommand(ctx context.Context, name string, args ...string) (string, string, error) {
@@ -298,4 +487,30 @@ func formatBytes(value uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(value)/float64(div), "KMGTPE"[exp])
+}
+
+func readFileRaw(path string) (string, RawCommandOutput) {
+	data, err := os.ReadFile(path)
+	raw := RawCommandOutput{
+		Command: fmt.Sprintf("cat %s", path),
+		Stdout:  string(data),
+		Err:     errorString(err),
+	}
+	return string(data), raw
+}
+
+func newRawOutput(command, stdout, stderr string, err error) RawCommandOutput {
+	return RawCommandOutput{
+		Command: command,
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Err:     errorString(err),
+	}
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
