@@ -31,3 +31,12 @@ llm:
   provider: eino
   model: ""
   timeout_seconds: 30
+
+i18n:
+  language: en
+  translation:
+    provider: siliconflow
+    model: "tencent/Hunyuan-MT-7B"
+    api_key: ""
+    base_url: "https://api.siliconflow.cn/v1/chat/completions"
+    timeout_seconds: 30

@@ -24,6 +24,7 @@ type Config struct {
 	Storage StorageConfig `mapstructure:"storage"`
 	Runtime RuntimeConfig `mapstructure:"runtime"`
 	LLM     LLMConfig     `mapstructure:"llm"`
+	I18n    I18nConfig    `mapstructure:"i18n"`
 }
 
 type ServerConfig struct {
@@ -63,6 +64,19 @@ type RuntimeConfig struct {
 type LLMConfig struct {
 	Provider       string `mapstructure:"provider"`
 	Model          string `mapstructure:"model"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
+type I18nConfig struct {
+	Language    string            `mapstructure:"language"`
+	Translation TranslationConfig `mapstructure:"translation"`
+}
+
+type TranslationConfig struct {
+	Provider       string `mapstructure:"provider"`
+	Model          string `mapstructure:"model"`
+	APIKey         string `mapstructure:"api_key"`
+	BaseURL        string `mapstructure:"base_url"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
@@ -107,7 +121,24 @@ func DefaultConfig() *Config {
 			Model:          "",
 			TimeoutSeconds: 30,
 		},
+		I18n: I18nConfig{
+			Language: "en",
+			Translation: TranslationConfig{
+				Provider:       "siliconflow",
+				Model:          "tencent/Hunyuan-MT-7B",
+				BaseURL:        "https://api.siliconflow.cn/v1/chat/completions",
+				TimeoutSeconds: 30,
+			},
+		},
 	}
+}
+
+func DefaultUserConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return "", errors.New("unable to determine home directory")
+	}
+	return filepath.Join(home, DefaultConfigDirName, DefaultConfigFileName+".yaml"), nil
 }
 
 func DefaultConfigPaths() []string {
@@ -198,4 +229,11 @@ func applyDefaults(v *viper.Viper, defaults *Config) {
 	v.SetDefault("llm.provider", defaults.LLM.Provider)
 	v.SetDefault("llm.model", defaults.LLM.Model)
 	v.SetDefault("llm.timeout_seconds", defaults.LLM.TimeoutSeconds)
+
+	v.SetDefault("i18n.language", defaults.I18n.Language)
+	v.SetDefault("i18n.translation.provider", defaults.I18n.Translation.Provider)
+	v.SetDefault("i18n.translation.model", defaults.I18n.Translation.Model)
+	v.SetDefault("i18n.translation.api_key", defaults.I18n.Translation.APIKey)
+	v.SetDefault("i18n.translation.base_url", defaults.I18n.Translation.BaseURL)
+	v.SetDefault("i18n.translation.timeout_seconds", defaults.I18n.Translation.TimeoutSeconds)
 }
