@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
 	"gopkg.in/yaml.v3"
 )
 
@@ -81,6 +82,16 @@ func newInitCommand() *cobra.Command {
 			}
 
 			cmd.Printf("Configuration written to %s\n", configPath)
+
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			baseInfoPath := filepath.Join(homeDir, ".localaistack", "base_info.md")
+			if err := system.WriteBaseInfo("", "md", true, false); err != nil {
+				return err
+			}
+			cmd.Printf("Base system info written to %s\n", baseInfoPath)
 			return nil
 		},
 	}
