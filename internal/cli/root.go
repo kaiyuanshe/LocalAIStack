@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/cli/commands"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
@@ -15,9 +16,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "localaistack",
 	Short: "LocalAIStack - Local AI workstation management",
-	Long: `LocalAIStack is an open, modular software stack for building and
-operating local AI workstations. It provides unified control over AI development
-environments, inference runtimes, models, and applications.`,
+	Long:  "LocalAIStack is an open, modular software stack for building and operating local AI workstations. It provides unified control over AI development environments, inference runtimes, models, and applications.",
 }
 
 func Execute() error {
@@ -73,5 +72,28 @@ func initConfig() {
 	cfg, err := config.LoadConfig()
 	if err == nil {
 		_ = i18n.Init(cfg.I18n)
+	}
+
+	localizeCommand(rootCmd)
+}
+
+func localizeCommand(cmd *cobra.Command) {
+	if cmd == nil {
+		return
+	}
+	if cmd.Short != "" {
+		cmd.Short = i18n.T(cmd.Short)
+	}
+	if cmd.Long != "" {
+		cmd.Long = i18n.T(cmd.Long)
+	}
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		flag.Usage = i18n.T(flag.Usage)
+	})
+	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
+		flag.Usage = i18n.T(flag.Usage)
+	})
+	for _, sub := range cmd.Commands() {
+		localizeCommand(sub)
 	}
 }
