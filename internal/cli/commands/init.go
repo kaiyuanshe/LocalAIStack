@@ -45,7 +45,7 @@ func newInitCommand() *cobra.Command {
 			existingLanguage := readNestedString(settings, "i18n", "language")
 
 			if apiKey == "" {
-				apiKey, err = promptValue(reader, i18n.T("SiliconFlow API Key"), existingAPIKey)
+				apiKey, err = promptValueWithDefault(reader, i18n.T("SiliconFlow API Key"), existingAPIKey, maskAPIKey(existingAPIKey))
 				if err != nil {
 					return err
 				}
@@ -167,8 +167,16 @@ func setNestedValue(data map[string]interface{}, value interface{}, path ...stri
 }
 
 func promptValue(reader *bufio.Reader, label string, defaultValue string) (string, error) {
-	if defaultValue != "" {
-		fmt.Printf("%s", i18n.T("%s [%s]: ", label, defaultValue))
+	return promptValueWithDefault(reader, label, defaultValue, "")
+}
+
+func promptValueWithDefault(reader *bufio.Reader, label string, defaultValue string, displayValue string) (string, error) {
+	promptValue := defaultValue
+	if displayValue != "" {
+		promptValue = displayValue
+	}
+	if promptValue != "" {
+		fmt.Printf("%s", i18n.T("%s [%s]: ", label, promptValue))
 	} else {
 		fmt.Printf("%s", i18n.T("%s: ", label))
 	}
@@ -189,4 +197,20 @@ func fallbackValue(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func maskAPIKey(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	const suffixLength = 4
+	prefix := ""
+	if strings.HasPrefix(trimmed, "sk-") {
+		prefix = "sk-"
+	}
+	if len(trimmed) <= len(prefix)+suffixLength {
+		return strings.Repeat("*", len(trimmed))
+	}
+	return prefix + strings.Repeat("*", len(trimmed)-len(prefix)-suffixLength) + trimmed[len(trimmed)-suffixLength:]
 }
