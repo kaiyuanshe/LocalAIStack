@@ -2,116 +2,68 @@
 
 ## 1. Goals and Scope
 
-This plan integrates the Eino framework as a first-class **framework module** in LocalAIStack, aligning with the module system, control layer, and runtime execution model.
+The goal is to **add Eino-powered LLM calling capability inside LocalAIStack** as a built-in integration, not as a separately installed module with its own InstallSpec or module directory.
+Eino should be treated as an internal provider/adapter that LocalAIStack can use to invoke LLMs, similar to how other providers are wired into the runtime and API layers.
+
 The initial integration focuses on:
 
-- shipping Eino as a versioned, installable module
-- wiring module metadata into the control layer’s resolver/state tracking
-- exposing Eino’s availability via CLI/API
-- preparing runtime hooks for optional Eino DevOps tooling (if adopted later)
+- embedding Eino as a Go dependency in the LocalAIStack codebase
+- adding an internal provider/adapter that maps LocalAIStack’s LLM interface to Eino
+- exposing the provider through existing configuration and API/CLI surfaces
+- keeping deployment simple (no new `modules/eino/` directory or install scripts)
 
-## 2. Module Placement and Directory Layout
+## 2. Where the Integration Lives
 
-Create a new module at:
+**No `modules/eino/` directory should be created.**  
+Instead, Eino should live as a **first-party integration within the Go codebase**, alongside other LLM providers or runtime adapters.
 
-```
-modules/eino/
-├── manifest.yaml
-├── INSTALL.yaml
-├── scripts/
-│   ├── verify.sh
-│   ├── rollback.sh
-│   ├── uninstall.sh
-│   ├── purge.sh
-│   └── cleanup_soft.sh (optional)
-└── templates/ (optional)
-```
+Recommended locations (adjust to actual project structure):
 
-This layout follows the required InstallSpec structure and keeps Eino aligned with existing module conventions.
+- `internal/` or `pkg/` provider packages to implement an **Eino-backed LLM provider**
+- configuration wiring in `configs/` to select `provider = "eino"`
+- API/CLI paths that list available providers
 
-## 3. Module Manifest Details (modules/eino/manifest.yaml)
+## 3. Dependency Management
 
-**Category:** `framework`
+Add the Eino dependency to the root Go module:
 
-Recommended fields (aligned with `internal/module/types.go` and `docs/modules.md`):
+- `go.mod` includes `github.com/cloudwego/eino` (pinned version)
+- optional minimal wrapper interfaces to isolate Eino-specific types
 
-```yaml
-name: eino
-category: framework
-version: <eino-version>
-description: Golang LLM application framework (CloudWeGo Eino)
-license: Apache-2.0
+This keeps the dependency managed by standard Go tooling, with no separate install step.
 
-hardware: {}
+## 4. Provider/Adapter Design
 
-dependencies:
-  system:
-    - git
-  modules:
-    - go
+Implement an internal provider that adapts LocalAIStack’s LLM abstraction to Eino:
 
-runtime:
-  modes:
-    - native
-  preferred: native
+- map LocalAIStack’s request/response models to Eino APIs
+- support standard features: model selection, streaming, timeouts, tool calling (if supported)
+- expose provider name `eino` in config and discovery endpoints
 
-interfaces:
-  provides:
-    - llm-orchestration
-    - workflow-runtime
-```
+If LocalAIStack already has a provider registry, Eino should be registered there with a clear capability list.
 
-Notes:
-- **`modules: [go]`** assumes a Go language module exists or will be added under `modules/go/`.
-- Eino is a **library/framework** (no long-lived service required), so runtime is `native` and installation is focused on installing sources/binaries or vendoring the Go module.
+## 5. Runtime Integration (No Module Lifecycle)
 
-## 4. InstallSpec (modules/eino/INSTALL.yaml)
+Eino is a library, not a standalone service.
+Therefore:
 
-Key ideas for InstallSpec:
+- **no module install/uninstall**
+- **no runtime lifecycle hooks**
+- **no scripts or manifests**
 
-- **Install mode:** `native`
-- **Install actions:**
-  - ensure Go toolchain is present (module dependency)
-  - clone or `go env GOPATH`-based install into a LocalAIStack-managed cache
-  - optionally provide a pinned version via `go env GOPATH` + `GOMODCACHE` or a vendor directory under `/var/lib/localaistack/frameworks/eino`
-- **Verification:**
-  - `go list` on `github.com/cloudwego/eino/...`
-  - optional `go test` for a minimal package subset
-- **Rollback/Uninstall:**
-  - remove cached module directories and workspace entries
+Any future Eino tooling that requires a service (UI, tracing, DevOps, etc.) should be treated as a separate optional component, not part of the core Eino provider.
 
-## 5. Control Layer Integration
+## 6. CLI / API Exposure
 
-Tie the Eino module into the control layer by extending the module registry/resolver:
+Expose Eino through existing mechanisms for providers:
 
-- **Module registry loading** should include `modules/eino/manifest.yaml` and use `internal/module/Manifest` definitions.
-- **Capability exposure**: treat Eino as a `framework` that provides `llm-orchestration` capability so the resolver can satisfy dependencies for future “app” modules.
-- **State tracking**: add Eino into `StateManager` module map and ensure install/upgrade transitions are tracked.
+- `localaistack provider list` or equivalent should include `eino`
+- `localaistack config set provider=eino` should enable it
+- API provider listing should surface `eino` as a built-in option
 
-This keeps the control plane consistent with `docs/architecture.md` and `docs/modules.md` expectations.
+## 7. Suggested Next Steps (Implementation Order)
 
-## 6. Runtime Layer Integration
-
-Eino is library-centric (no default daemon), so runtime integration is minimal:
-
-- **No service lifecycle required** by default.
-- If future Eino DevOps tooling is added (e.g., web UI or tracing service), introduce a separate `application` or `service` module (e.g., `modules/eino-devops/`) with `container` runtime mode.
-
-## 7. CLI / API Exposure
-
-Expose Eino in existing module commands:
-
-- `localaistack module list` should include `eino` as available.
-- `localaistack module install eino` should route to the resolver and install plan for the Eino module.
-
-For API:
-
-- Add module listing endpoints to surface `framework` modules and their states.
-
-## 8. Suggested Next Steps (Implementation Order)
-
-1. **Create `modules/eino/`** with `manifest.yaml` + `INSTALL.yaml` + scripts.
-2. **Implement module registry loading** in the control layer to discover `modules/*/manifest.yaml`.
-3. **Wire resolver + state manager** to accept `framework` modules and track Eino state transitions.
-4. **Expose module states in CLI/API** for visibility and future UX.
-5. **Optional:** add `modules/eino-ext/` for EinoExt tooling/examples as a separate module.
+1. Add Eino dependency to `go.mod`.
+2. Create an internal provider adapter (e.g., `internal/provider/eino`).
+3. Wire provider registration and configuration.
+4. Add basic integration tests to confirm the adapter can route a request through Eino.
