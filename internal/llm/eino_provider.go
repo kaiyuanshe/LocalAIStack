@@ -2,8 +2,9 @@ package llm
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 type EinoConfig struct {
@@ -26,5 +27,5 @@ func (p *EinoProvider) Name() string {
 func (p *EinoProvider) Generate(ctx context.Context, req Request) (Response, error) {
 	_ = ctx
 	_ = req
-	return Response{}, fmt.Errorf("eino provider not configured")
+	return Response{}, i18n.Errorf("eino provider not configured")
 }

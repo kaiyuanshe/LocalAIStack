@@ -13,6 +13,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 type Manager struct {
@@ -56,7 +57,7 @@ func NewManager(cfg config.RuntimeConfig) *Manager {
 
 func (m *Manager) Start(ctx context.Context, spec ModuleSpec) (*Status, error) {
 	if strings.TrimSpace(spec.Name) == "" {
-		return nil, fmt.Errorf("module name is required")
+		return nil, i18n.Errorf("module name is required")
 	}
 	mode := spec.Mode
 	if mode == "" {
@@ -69,7 +70,7 @@ func (m *Manager) Start(ctx context.Context, spec ModuleSpec) (*Status, error) {
 	m.mu.Lock()
 	if existing, ok := m.processes[spec.Name]; ok && existing.status.State == StateRunning {
 		m.mu.Unlock()
-		return nil, fmt.Errorf("module %q already running", spec.Name)
+		return nil, i18n.Errorf("module %q already running", spec.Name)
 	}
 	m.mu.Unlock()
 
@@ -106,7 +107,7 @@ func (m *Manager) Start(ctx context.Context, spec ModuleSpec) (*Status, error) {
 		}
 	default:
 		m.closeLogFile(proc)
-		return nil, fmt.Errorf("unsupported execution mode: %s", mode)
+		return nil, i18n.Errorf("unsupported execution mode: %s", mode)
 	}
 
 	m.mu.Lock()
@@ -121,7 +122,7 @@ func (m *Manager) Start(ctx context.Context, spec ModuleSpec) (*Status, error) {
 func (m *Manager) Stop(ctx context.Context, name string) error {
 	proc, ok := m.getProcess(name)
 	if !ok {
-		return fmt.Errorf("module %q not found", name)
+		return i18n.Errorf("module %q not found", name)
 	}
 
 	var err error
@@ -131,7 +132,7 @@ func (m *Manager) Stop(ctx context.Context, name string) error {
 	case ModeContainer:
 		err = m.stopContainer(ctx, proc)
 	default:
-		err = fmt.Errorf("unsupported execution mode: %s", proc.status.Mode)
+		err = i18n.Errorf("unsupported execution mode: %s", proc.status.Mode)
 	}
 
 	m.stopHealthMonitor(proc)
@@ -162,14 +163,14 @@ func (m *Manager) validateMode(mode ExecutionMode) error {
 	switch mode {
 	case ModeContainer:
 		if !m.dockerEnabled {
-			return fmt.Errorf("container runtime disabled")
+			return i18n.Errorf("container runtime disabled")
 		}
 	case ModeNative:
 		if !m.nativeEnabled {
-			return fmt.Errorf("native runtime disabled")
+			return i18n.Errorf("native runtime disabled")
 		}
 	default:
-		return fmt.Errorf("invalid runtime mode %q", mode)
+		return i18n.Errorf("invalid runtime mode %q", mode)
 	}
 	return nil
 }
@@ -178,12 +179,12 @@ func (m *Manager) createLogFile(name string) (*os.File, string, error) {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	logDir := filepath.Join(m.baseDir, "logs", name)
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		return nil, "", fmt.Errorf("create log dir: %w", err)
+		return nil, "", i18n.Errorf("create log dir: %w", err)
 	}
 	logPath := filepath.Join(logDir, fmt.Sprintf("%s.log", timestamp))
 	file, err := os.Create(logPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("create log file: %w", err)
+		return nil, "", i18n.Errorf("create log file: %w", err)
 	}
 	return file, logPath, nil
 }
@@ -191,7 +192,7 @@ func (m *Manager) createLogFile(name string) (*os.File, string, error) {
 func (m *Manager) closeLogFile(proc *process) {
 	if proc.logFile != nil {
 		if err := proc.logFile.Close(); err != nil {
-			log.Warn().Err(err).Msg("failed to close log file")
+			log.Warn().Err(err).Msg(i18n.T("failed to close log file"))
 		}
 	}
 }

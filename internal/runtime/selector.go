@@ -1,9 +1,8 @@
 package runtime
 
 import (
-	"fmt"
-
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/module"
 )
 
@@ -20,7 +19,7 @@ func SelectExecutionMode(input SelectionInput) (ExecutionMode, error) {
 		available[mode] = struct{}{}
 	}
 	if len(available) == 0 {
-		return "", fmt.Errorf("no runtime modes declared")
+		return "", i18n.Errorf("no runtime modes declared")
 	}
 	if len(input.AllowedModes) > 0 {
 		allowed := map[string]struct{}{}
@@ -40,7 +39,7 @@ func SelectExecutionMode(input SelectionInput) (ExecutionMode, error) {
 		delete(available, string(ModeNative))
 	}
 	if len(available) == 0 {
-		return "", fmt.Errorf("no runtime modes available after policy and config filters")
+		return "", i18n.Errorf("no runtime modes available after policy and config filters")
 	}
 
 	preferred := input.Preference
@@ -69,5 +68,5 @@ func SelectExecutionMode(input SelectionInput) (ExecutionMode, error) {
 	for mode := range available {
 		return ExecutionMode(mode), nil
 	}
-	return "", fmt.Errorf("unable to select execution mode")
+	return "", i18n.Errorf("unable to select execution mode")
 }

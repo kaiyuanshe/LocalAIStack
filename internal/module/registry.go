@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"gopkg.in/yaml.v3"
 )
 
@@ -46,10 +47,10 @@ func LoadRegistryFromDir(root string) (*Registry, error) {
 		}
 		record, err := LoadModuleRecord(path)
 		if err != nil {
-			return fmt.Errorf("load module manifest %s: %w", path, err)
+			return i18n.Errorf("load module manifest %s: %w", path, err)
 		}
 		if err := registry.Add(record); err != nil {
-			return fmt.Errorf("register module %s: %w", record.Manifest.Name, err)
+			return i18n.Errorf("register module %s: %w", record.Manifest.Name, err)
 		}
 		return nil
 	})
@@ -81,7 +82,7 @@ func LoadModuleRecord(path string) (ModuleRecord, error) {
 	if manifest.Integrity.Checksum != "" {
 		expected := normalizeChecksum(manifest.Integrity.Checksum)
 		if !strings.EqualFold(checksum, expected) {
-			return ModuleRecord{}, fmt.Errorf("checksum mismatch for %s: expected %s got %s", manifest.Name, expected, checksum)
+			return ModuleRecord{}, i18n.Errorf("checksum mismatch for %s: expected %s got %s", manifest.Name, expected, checksum)
 		}
 	}
 
@@ -112,7 +113,7 @@ func (r *Registry) Add(record ModuleRecord) error {
 	}
 	name := record.Manifest.Name
 	if name == "" {
-		return fmt.Errorf("module name is required")
+		return i18n.Errorf("module name is required")
 	}
 	r.records[name] = append(r.records[name], record)
 	sort.Slice(r.records[name], func(i, j int) bool {

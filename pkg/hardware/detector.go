@@ -1,25 +1,25 @@
 package hardware
 
-import "fmt"
+import "github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 
 type CPU struct {
-	Arch       string
-	Cores      int
-	Threads    int
-	ModelName  string
-	Vendor     string
+	Arch      string
+	Cores     int
+	Threads   int
+	ModelName string
+	Vendor    string
 }
 
 type GPU struct {
-	Index      int
-	Name       string
-	Vendor     string
-	VRAMTotal  uint64
-	VRAMFree   uint64
-	CUDAVersion string
+	Index         int
+	Name          string
+	Vendor        string
+	VRAMTotal     uint64
+	VRAMFree      uint64
+	CUDAVersion   string
 	DriverVersion string
-	MultiGPU   bool
-	NVLink     bool
+	MultiGPU      bool
+	NVLink        bool
 }
 
 type Memory struct {
@@ -36,10 +36,10 @@ type Storage struct {
 }
 
 type HardwareProfile struct {
-	CPU      CPU
-	GPUs     []GPU
-	Memory   Memory
-	Storage  []Storage
+	CPU     CPU
+	GPUs    []GPU
+	Memory  Memory
+	Storage []Storage
 }
 
 type Detector interface {
@@ -58,11 +58,11 @@ func NewNativeDetector() Detector {
 
 func (d *NativeDetector) DetectCPU() (CPU, error) {
 	return CPU{
-		Arch:       "x86_64",
-		Cores:      8,
-		Threads:    16,
-		ModelName:  "Placeholder",
-		Vendor:     "Unknown",
+		Arch:      "x86_64",
+		Cores:     8,
+		Threads:   16,
+		ModelName: "Placeholder",
+		Vendor:    "Unknown",
 	}, nil
 }
 
@@ -92,22 +92,22 @@ func (d *NativeDetector) DetectStorage() ([]Storage, error) {
 func (d *NativeDetector) Detect() (*HardwareProfile, error) {
 	cpu, err := d.DetectCPU()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect CPU: %w", err)
+		return nil, i18n.Errorf("failed to detect CPU: %w", err)
 	}
 
 	gpus, err := d.DetectGPUs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect GPUs: %w", err)
+		return nil, i18n.Errorf("failed to detect GPUs: %w", err)
 	}
 
 	memory, err := d.DetectMemory()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect memory: %w", err)
+		return nil, i18n.Errorf("failed to detect memory: %w", err)
 	}
 
 	storage, err := d.DetectStorage()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect storage: %w", err)
+		return nil, i18n.Errorf("failed to detect storage: %w", err)
 	}
 
 	return &HardwareProfile{

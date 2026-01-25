@@ -2,10 +2,10 @@ package control
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/pkg/hardware"
 )
 
@@ -19,50 +19,50 @@ type ControlLayer struct {
 }
 
 func New(ctx context.Context, cfg *config.Config) (*ControlLayer, error) {
-	log.Info().Msg("Initializing control layer")
+	log.Info().Msg(i18n.T("Initializing control layer"))
 	return &ControlLayer{cfg: cfg}, nil
 }
 
 func (c *ControlLayer) Start(ctx context.Context) error {
-	log.Info().Msg("Starting control layer")
+	log.Info().Msg(i18n.T("Starting control layer"))
 
 	if err := c.initHardwareDetector(ctx); err != nil {
-		return fmt.Errorf("failed to initialize hardware detector: %w", err)
+		return i18n.Errorf("failed to initialize hardware detector: %w", err)
 	}
 
 	if err := c.initPolicyEngine(ctx); err != nil {
-		return fmt.Errorf("failed to initialize policy engine: %w", err)
+		return i18n.Errorf("failed to initialize policy engine: %w", err)
 	}
 
 	if err := c.initStateManager(ctx); err != nil {
-		return fmt.Errorf("failed to initialize state manager: %w", err)
+		return i18n.Errorf("failed to initialize state manager: %w", err)
 	}
 
 	if err := c.detectHardware(ctx); err != nil {
-		return fmt.Errorf("failed to detect hardware: %w", err)
+		return i18n.Errorf("failed to detect hardware: %w", err)
 	}
 
 	if err := c.evaluatePolicies(ctx); err != nil {
-		return fmt.Errorf("failed to evaluate policies: %w", err)
+		return i18n.Errorf("failed to evaluate policies: %w", err)
 	}
 
-	log.Info().Msg("Control layer started successfully")
+	log.Info().Msg(i18n.T("Control layer started successfully"))
 	return nil
 }
 
 func (c *ControlLayer) Stop(ctx context.Context) error {
-	log.Info().Msg("Stopping control layer")
+	log.Info().Msg(i18n.T("Stopping control layer"))
 	return nil
 }
 
 func (c *ControlLayer) initHardwareDetector(ctx context.Context) error {
-	log.Info().Msg("Initializing hardware detector")
+	log.Info().Msg(i18n.T("Initializing hardware detector"))
 	c.detector = hardware.NewNativeDetector()
 	return nil
 }
 
 func (c *ControlLayer) initPolicyEngine(ctx context.Context) error {
-	log.Info().Msg("Initializing policy engine")
+	log.Info().Msg(i18n.T("Initializing policy engine"))
 	engine, err := LoadPolicyEngine(c.cfg.Control.PolicyFile)
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func (c *ControlLayer) initPolicyEngine(ctx context.Context) error {
 }
 
 func (c *ControlLayer) initStateManager(ctx context.Context) error {
-	log.Info().Msg("Initializing state manager")
+	log.Info().Msg(i18n.T("Initializing state manager"))
 	manager, err := NewStateManager(c.cfg.Control.DataDir)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (c *ControlLayer) initStateManager(ctx context.Context) error {
 
 func (c *ControlLayer) detectHardware(ctx context.Context) error {
 	if c.detector == nil {
-		return fmt.Errorf("hardware detector not initialized")
+		return i18n.Errorf("hardware detector not initialized")
 	}
 	profile, err := c.detector.Detect()
 	if err != nil {
@@ -95,10 +95,10 @@ func (c *ControlLayer) detectHardware(ctx context.Context) error {
 
 func (c *ControlLayer) evaluatePolicies(ctx context.Context) error {
 	if c.policyEngine == nil {
-		return fmt.Errorf("policy engine not initialized")
+		return i18n.Errorf("policy engine not initialized")
 	}
 	if c.profile == nil {
-		return fmt.Errorf("hardware profile not available")
+		return i18n.Errorf("hardware profile not available")
 	}
 	capabilities, err := c.policyEngine.Evaluate(c.profile)
 	if err != nil {

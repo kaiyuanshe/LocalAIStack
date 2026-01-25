@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 func (m *Manager) startContainer(ctx context.Context, spec ModuleSpec, proc *process) error {
@@ -18,7 +20,7 @@ func (m *Manager) startContainer(ctx context.Context, spec ModuleSpec, proc *pro
 		name = fmt.Sprintf("%s-%d", spec.Name, time.Now().Unix())
 	}
 	if spec.Image == "" {
-		return fmt.Errorf("container image is required")
+		return i18n.Errorf("container image is required")
 	}
 
 	args := []string{"run", "-d", "--rm", "--name", name}
@@ -39,11 +41,11 @@ func (m *Manager) startContainer(ctx context.Context, spec ModuleSpec, proc *pro
 	cmd := exec.CommandContext(ctx, containerBin, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("start container: %w (%s)", err, strings.TrimSpace(string(output)))
+		return i18n.Errorf("start container: %w (%s)", err, strings.TrimSpace(string(output)))
 	}
 	containerID := strings.TrimSpace(string(output))
 	if containerID == "" {
-		return fmt.Errorf("container runtime did not return container id")
+		return i18n.Errorf("container runtime did not return container id")
 	}
 
 	proc.status.State = StateRunning
@@ -63,7 +65,7 @@ func (m *Manager) startContainerLogs(proc *process) {
 	logCmd.Stdout = proc.logFile
 	logCmd.Stderr = proc.logFile
 	if err := logCmd.Start(); err != nil {
-		proc.status.LastError = fmt.Sprintf("start log stream: %s", err)
+		proc.status.LastError = i18n.T("start log stream: %s", err)
 		return
 	}
 	go func() {
@@ -90,7 +92,7 @@ func (m *Manager) stopContainer(ctx context.Context, proc *process) error {
 	cmd := exec.CommandContext(ctx, proc.containerBin, "stop", "-t", "10", proc.containerID)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("stop container: %w (%s)", err, strings.TrimSpace(string(output)))
+		return i18n.Errorf("stop container: %w (%s)", err, strings.TrimSpace(string(output)))
 	}
 	m.markStopped(proc, nil)
 	m.stopLogStream(proc)
@@ -99,18 +101,18 @@ func (m *Manager) stopContainer(ctx context.Context, proc *process) error {
 
 func (m *Manager) resolveContainerRuntime(preferred string) (string, error) {
 	if !m.dockerEnabled {
-		return "", fmt.Errorf("container runtime disabled")
+		return "", i18n.Errorf("container runtime disabled")
 	}
 	if preferred != "" {
 		if _, err := exec.LookPath(preferred); err == nil {
 			return preferred, nil
 		}
-		return "", fmt.Errorf("container runtime %q not found", preferred)
+		return "", i18n.Errorf("container runtime %q not found", preferred)
 	}
 	for _, candidate := range []string{"docker", "podman"} {
 		if _, err := exec.LookPath(candidate); err == nil {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("no container runtime found")
+	return "", i18n.Errorf("no container runtime found")
 }

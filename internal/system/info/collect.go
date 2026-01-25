@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 type BaseInfo struct {
@@ -137,7 +138,7 @@ func cpuModel(ctx context.Context) string {
 		if err := scanner.Err(); err != nil {
 			return formatUnknown("/proc/cpuinfo", err, "")
 		}
-		return "unknown: cpu model not found"
+		return i18n.T("unknown: cpu model not found")
 	case "darwin":
 		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "machdep.cpu.brand_string")
 		if err != nil {
@@ -145,7 +146,7 @@ func cpuModel(ctx context.Context) string {
 		}
 		return strings.TrimSpace(stdout)
 	default:
-		return "unknown: unsupported OS"
+		return i18n.T("unknown: unsupported OS")
 	}
 }
 
@@ -170,7 +171,7 @@ func cpuModelWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string
 		if err := scanner.Err(); err != nil {
 			return formatUnknown("/proc/cpuinfo", err, ""), rawOutputs
 		}
-		return "unknown: cpu model not found", rawOutputs
+		return i18n.T("unknown: cpu model not found"), rawOutputs
 	case "darwin":
 		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "machdep.cpu.brand_string")
 		rawOutputs = append(rawOutputs, newRawOutput("sysctl -n machdep.cpu.brand_string", stdout, stderr, err))
@@ -179,7 +180,7 @@ func cpuModelWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string
 		}
 		return strings.TrimSpace(stdout), rawOutputs
 	default:
-		return "unknown: unsupported OS", rawOutputs
+		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
 }
 
@@ -199,22 +200,22 @@ func memoryTotal(ctx context.Context) string {
 				fields := strings.Fields(line)
 				if len(fields) >= 2 {
 					value := fields[1]
-					return fmt.Sprintf("%s kB", value)
+					return i18n.T("%s kB", value)
 				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			return formatUnknown("/proc/meminfo", err, "")
 		}
-		return "unknown: meminfo missing MemTotal"
+		return i18n.T("unknown: meminfo missing MemTotal")
 	case "darwin":
 		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "hw.memsize")
 		if err != nil {
 			return formatUnknown("sysctl", err, stderr)
 		}
-		return fmt.Sprintf("%s bytes", strings.TrimSpace(stdout))
+		return i18n.T("%s bytes", strings.TrimSpace(stdout))
 	default:
-		return "unknown: unsupported OS"
+		return i18n.T("unknown: unsupported OS")
 	}
 }
 
@@ -233,23 +234,23 @@ func memoryTotalWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (str
 				fields := strings.Fields(line)
 				if len(fields) >= 2 {
 					value := fields[1]
-					return fmt.Sprintf("%s kB", value), rawOutputs
+					return i18n.T("%s kB", value), rawOutputs
 				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			return formatUnknown("/proc/meminfo", err, ""), rawOutputs
 		}
-		return "unknown: meminfo missing MemTotal", rawOutputs
+		return i18n.T("unknown: meminfo missing MemTotal"), rawOutputs
 	case "darwin":
 		stdout, stderr, err := runCommand(ctx, "sysctl", "-n", "hw.memsize")
 		rawOutputs = append(rawOutputs, newRawOutput("sysctl -n hw.memsize", stdout, stderr, err))
 		if err != nil {
 			return formatUnknown("sysctl", err, stderr), rawOutputs
 		}
-		return fmt.Sprintf("%s bytes", strings.TrimSpace(stdout)), rawOutputs
+		return i18n.T("%s bytes", strings.TrimSpace(stdout)), rawOutputs
 	default:
-		return "unknown: unsupported OS", rawOutputs
+		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
 }
 
@@ -276,11 +277,11 @@ func gpuInfo(ctx context.Context) string {
 			}
 		}
 		if len(matches) == 0 {
-			return "unknown: no GPU entries"
+			return i18n.T("unknown: no GPU entries")
 		}
 		return strings.Join(matches, "; ")
 	default:
-		return "unknown: unsupported OS"
+		return i18n.T("unknown: unsupported OS")
 	}
 }
 
@@ -309,11 +310,11 @@ func gpuInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string,
 			}
 		}
 		if len(matches) == 0 {
-			return "unknown: no GPU entries", rawOutputs
+			return i18n.T("unknown: no GPU entries"), rawOutputs
 		}
 		return strings.Join(matches, "; "), rawOutputs
 	default:
-		return "unknown: unsupported OS", rawOutputs
+		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
 }
 
@@ -360,7 +361,7 @@ func internalIPs() []string {
 	}
 
 	if len(ips) == 0 {
-		return []string{"unknown: no internal IPs"}
+		return []string{i18n.T("unknown: no internal IPs")}
 	}
 	return ips
 }
@@ -372,9 +373,9 @@ func runtimeAvailability(ctx context.Context, runtimeName string) string {
 	}
 	trimmed := strings.TrimSpace(stdout)
 	if trimmed == "" {
-		return "available"
+		return i18n.T("available")
 	}
-	return fmt.Sprintf("available: %s", trimmed)
+	return i18n.T("available: %s", trimmed)
 }
 
 func runtimeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutput, runtimeName string) (string, []RawCommandOutput) {
@@ -385,13 +386,13 @@ func runtimeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutp
 	}
 	trimmed := strings.TrimSpace(stdout)
 	if trimmed == "" {
-		return "available", rawOutputs
+		return i18n.T("available"), rawOutputs
 	}
-	return fmt.Sprintf("available: %s", trimmed), rawOutputs
+	return i18n.T("available: %s", trimmed), rawOutputs
 }
 
 func runtimeCapabilities(dockerStatus, podmanStatus string) string {
-	return fmt.Sprintf("docker=%s; podman=%s", dockerStatus, podmanStatus)
+	return i18n.T("docker=%s; podman=%s", dockerStatus, podmanStatus)
 }
 
 func extractIP(addr net.Addr) string {
@@ -425,7 +426,7 @@ func diskInfoRaw(ctx context.Context) []RawCommandOutput {
 	default:
 		return []RawCommandOutput{{
 			Command: "df -h /",
-			Err:     "unsupported OS",
+			Err:     i18n.T("unsupported OS"),
 		}}
 	}
 }
@@ -440,8 +441,8 @@ func networkInfoRaw(ctx context.Context) []RawCommandOutput {
 		return []RawCommandOutput{newRawOutput("ifconfig", stdout, stderr, err)}
 	default:
 		return []RawCommandOutput{{
-			Command: "network info",
-			Err:     "unsupported OS",
+			Command: i18n.T("network info"),
+			Err:     i18n.T("unsupported OS"),
 		}}
 	}
 }
@@ -463,15 +464,15 @@ func runCommand(ctx context.Context, name string, args ...string) (string, strin
 
 func formatUnknown(source string, err error, stderr string) string {
 	if err == nil {
-		return "unknown"
+		return i18n.T("unknown")
 	}
-	message := fmt.Sprintf("unknown: %s", err.Error())
+	message := i18n.T("unknown: %s", err.Error())
 	if source != "" {
-		message = fmt.Sprintf("unknown (%s): %s", source, err.Error())
+		message = i18n.T("unknown (%s): %s", source, err.Error())
 	}
 	stderr = strings.TrimSpace(stderr)
 	if stderr != "" {
-		message = fmt.Sprintf("%s; stderr: %s", message, stderr)
+		message = i18n.T("%s; stderr: %s", message, stderr)
 	}
 	return message
 }
@@ -479,14 +480,14 @@ func formatUnknown(source string, err error, stderr string) string {
 func formatBytes(value uint64) string {
 	const unit = 1024
 	if value < unit {
-		return fmt.Sprintf("%d B", value)
+		return i18n.T("%d B", value)
 	}
 	div, exp := uint64(unit), 0
 	for n := value / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f %cB", float64(value)/float64(div), "KMGTPE"[exp])
+	return i18n.T("%.1f %cB", float64(value)/float64(div), "KMGTPE"[exp])
 }
 
 func readFileRaw(path string) (string, RawCommandOutput) {

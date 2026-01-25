@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/cli/commands"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 var rootCmd = &cobra.Command{
@@ -30,11 +31,11 @@ func init() {
 	rootCmd.PersistentFlags().Bool("verbose", false, "verbose output")
 
 	if err := viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config")); err != nil {
-		fmt.Fprintf(os.Stderr, "Error binding config flag: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", i18n.T("Error binding config flag: %v", err))
 		os.Exit(1)
 	}
 	if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
-		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", i18n.T("Error binding verbose flag: %v", err))
 		os.Exit(1)
 	}
 
@@ -65,7 +66,12 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if viper.GetString("config") != "" {
-			fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "%s\n", i18n.T("Error reading config file: %v", err))
 		}
+	}
+
+	cfg, err := config.LoadConfig()
+	if err == nil {
+		_ = i18n.Init(cfg.I18n)
 	}
 }

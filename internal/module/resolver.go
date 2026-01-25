@@ -1,6 +1,6 @@
 package module
 
-import "fmt"
+import "github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 
 type InstallPlan struct {
 	Order   []string
@@ -17,7 +17,7 @@ func NewResolver(registry *Registry) *Resolver {
 
 func (r *Resolver) ResolveInstallPlan(targets []string) (InstallPlan, error) {
 	if r.registry == nil {
-		return InstallPlan{}, fmt.Errorf("registry is required")
+		return InstallPlan{}, i18n.Errorf("registry is required")
 	}
 	plan := InstallPlan{
 		Modules: make(map[string]ModuleRecord),
@@ -45,12 +45,12 @@ func (r *Resolver) ResolveInstallPlan(targets []string) (InstallPlan, error) {
 func (r *Resolver) resolveModule(name string, constraint *VersionConstraint, visited map[string]bool, stack *[]string, plan *InstallPlan) error {
 	if existing, ok := plan.Modules[name]; ok {
 		if constraint != nil && !constraint.Match(existing.Version) {
-			return fmt.Errorf("version conflict for %s: selected %s does not satisfy %s%s", name, existing.Version, constraint.Operator, constraint.Version)
+			return i18n.Errorf("version conflict for %s: selected %s does not satisfy %s%s", name, existing.Version, constraint.Operator, constraint.Version)
 		}
 		return nil
 	}
 	if visited[name] {
-		return fmt.Errorf("circular dependency detected at %s", name)
+		return i18n.Errorf("circular dependency detected at %s", name)
 	}
 	visited[name] = true
 
@@ -77,12 +77,12 @@ func (r *Resolver) resolveModule(name string, constraint *VersionConstraint, vis
 func (r *Resolver) selectRecord(name string, constraint *VersionConstraint) (ModuleRecord, error) {
 	records := r.registry.Get(name)
 	if len(records) == 0 {
-		return ModuleRecord{}, fmt.Errorf("module %s not found in registry", name)
+		return ModuleRecord{}, i18n.Errorf("module %s not found in registry", name)
 	}
 	for _, record := range records {
 		if constraint == nil || constraint.Match(record.Version) {
 			return record, nil
 		}
 	}
-	return ModuleRecord{}, fmt.Errorf("no available versions for %s satisfy constraint", name)
+	return ModuleRecord{}, i18n.Errorf("no available versions for %s satisfy constraint", name)
 }

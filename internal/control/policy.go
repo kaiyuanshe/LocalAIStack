@@ -1,12 +1,12 @@
 package control
 
 import (
-	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/pkg/hardware"
 	"gopkg.in/yaml.v3"
 )
@@ -55,12 +55,12 @@ type CapabilitySet struct {
 func LoadPolicyEngine(path string) (*PolicyEngine, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read policy file: %w", err)
+		return nil, i18n.Errorf("read policy file: %w", err)
 	}
 
 	set := PolicySet{}
 	if err := yaml.Unmarshal(data, &set); err != nil {
-		return nil, fmt.Errorf("parse policy file: %w", err)
+		return nil, i18n.Errorf("parse policy file: %w", err)
 	}
 
 	return &PolicyEngine{set: set}, nil
@@ -72,7 +72,7 @@ func NewPolicyEngine(set PolicySet) *PolicyEngine {
 
 func (e *PolicyEngine) Evaluate(profile *hardware.HardwareProfile) (CapabilitySet, error) {
 	if profile == nil {
-		return CapabilitySet{}, fmt.Errorf("hardware profile is nil")
+		return CapabilitySet{}, i18n.Errorf("hardware profile is nil")
 	}
 	normalized := hardware.NormalizeProfile(profile)
 	return e.EvaluateNormalized(normalized)
@@ -80,7 +80,7 @@ func (e *PolicyEngine) Evaluate(profile *hardware.HardwareProfile) (CapabilitySe
 
 func (e *PolicyEngine) EvaluateNormalized(profile hardware.NormalizedProfile) (CapabilitySet, error) {
 	if len(e.set.Policies) == 0 {
-		return CapabilitySet{}, fmt.Errorf("no policies loaded")
+		return CapabilitySet{}, i18n.Errorf("no policies loaded")
 	}
 
 	var matched []PolicyDefinition
@@ -91,7 +91,7 @@ func (e *PolicyEngine) EvaluateNormalized(profile hardware.NormalizedProfile) (C
 	}
 
 	if len(matched) == 0 {
-		return CapabilitySet{}, fmt.Errorf("no matching policies for hardware profile")
+		return CapabilitySet{}, i18n.Errorf("no matching policies for hardware profile")
 	}
 
 	capabilities := CapabilitySet{
@@ -193,18 +193,18 @@ func matchesBytes(value uint64, minRaw, maxRaw string) bool {
 func parseBytes(raw string) (uint64, error) {
 	trimmed := strings.TrimSpace(strings.ToUpper(raw))
 	if trimmed == "" {
-		return 0, fmt.Errorf("empty size")
+		return 0, i18n.Errorf("empty size")
 	}
 
 	for _, suffix := range []string{"TB", "GB", "MB", "KB", "B"} {
 		if strings.HasSuffix(trimmed, suffix) {
 			number := strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
 			if number == "" {
-				return 0, fmt.Errorf("invalid size: %s", raw)
+				return 0, i18n.Errorf("invalid size: %s", raw)
 			}
 			value, err := strconv.ParseFloat(number, 64)
 			if err != nil {
-				return 0, fmt.Errorf("invalid size: %w", err)
+				return 0, i18n.Errorf("invalid size: %w", err)
 			}
 			multiplier := uint64(1)
 			switch suffix {
@@ -223,7 +223,7 @@ func parseBytes(raw string) (uint64, error) {
 
 	value, err := strconv.ParseFloat(trimmed, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid size: %w", err)
+		return 0, i18n.Errorf("invalid size: %w", err)
 	}
 	return uint64(value), nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
 	"gopkg.in/yaml.v3"
 )
@@ -24,7 +25,7 @@ func newInitCommand() *cobra.Command {
 
 	initCmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize LocalAIStack interactive configuration",
+		Short: i18n.T("Initialize LocalAIStack interactive configuration"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if configPath == "" {
 				defaultPath, err := config.DefaultUserConfigPath()
@@ -44,21 +45,21 @@ func newInitCommand() *cobra.Command {
 			existingLanguage := readNestedString(settings, "i18n", "language")
 
 			if apiKey == "" {
-				apiKey, err = promptValue(reader, "SiliconFlow API Key", existingAPIKey)
+				apiKey, err = promptValue(reader, i18n.T("SiliconFlow API Key"), existingAPIKey)
 				if err != nil {
 					return err
 				}
 			}
 
 			if language == "" {
-				language, err = promptValue(reader, "Preferred language", fallbackValue(existingLanguage, "en"))
+				language, err = promptValue(reader, i18n.T("Preferred language"), fallbackValue(existingLanguage, "en"))
 				if err != nil {
 					return err
 				}
 			}
 
 			if language == "" {
-				return fmt.Errorf("language cannot be empty")
+				return i18n.Errorf("language cannot be empty")
 			}
 
 			setNestedValue(settings, apiKey, "i18n", "translation", "api_key")
@@ -81,7 +82,7 @@ func newInitCommand() *cobra.Command {
 				return err
 			}
 
-			cmd.Printf("Configuration written to %s\n", configPath)
+			cmd.Printf("%s\n", i18n.T("Configuration written to %s", configPath))
 
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
@@ -91,18 +92,18 @@ func newInitCommand() *cobra.Command {
 			if err := system.WriteBaseInfo("", "md", true, false); err != nil {
 				return err
 			}
-			cmd.Printf("Base system info written to %s\n", baseInfoPath)
+			cmd.Printf("%s\n", i18n.T("Base system info written to %s", baseInfoPath))
 			return nil
 		},
 	}
 
-	initCmd.Flags().StringVar(&configPath, "config-path", "", "config file path (default is ~/.localaistack/config.yaml)")
-	initCmd.Flags().StringVar(&apiKey, "api-key", "", "SiliconFlow API key")
-	initCmd.Flags().StringVar(&language, "language", "", "Preferred interaction language")
-	initCmd.Flags().StringVar(&provider, "provider", "siliconflow", "Translation provider")
-	initCmd.Flags().StringVar(&model, "model", "tencent/Hunyuan-MT-7B", "Translation model")
-	initCmd.Flags().StringVar(&baseURL, "base-url", "https://api.siliconflow.cn/v1/chat/completions", "Translation API base URL")
-	initCmd.Flags().IntVar(&timeoutSeconds, "timeout-seconds", 30, "Translation timeout in seconds")
+	initCmd.Flags().StringVar(&configPath, "config-path", "", i18n.T("config file path (default is ~/.localaistack/config.yaml)"))
+	initCmd.Flags().StringVar(&apiKey, "api-key", "", i18n.T("SiliconFlow API key"))
+	initCmd.Flags().StringVar(&language, "language", "", i18n.T("Preferred interaction language"))
+	initCmd.Flags().StringVar(&provider, "provider", "siliconflow", i18n.T("Translation provider"))
+	initCmd.Flags().StringVar(&model, "model", "tencent/Hunyuan-MT-7B", i18n.T("Translation model"))
+	initCmd.Flags().StringVar(&baseURL, "base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Translation API base URL"))
+	initCmd.Flags().IntVar(&timeoutSeconds, "timeout-seconds", 30, i18n.T("Translation timeout in seconds"))
 
 	return initCmd
 }
@@ -167,9 +168,9 @@ func setNestedValue(data map[string]interface{}, value interface{}, path ...stri
 
 func promptValue(reader *bufio.Reader, label string, defaultValue string) (string, error) {
 	if defaultValue != "" {
-		fmt.Printf("%s [%s]: ", label, defaultValue)
+		fmt.Printf("%s", i18n.T("%s [%s]: ", label, defaultValue))
 	} else {
-		fmt.Printf("%s: ", label)
+		fmt.Printf("%s", i18n.T("%s: ", label))
 	}
 
 	input, err := reader.ReadString('\n')

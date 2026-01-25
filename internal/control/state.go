@@ -2,12 +2,12 @@ package control
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/module"
 )
 
@@ -52,11 +52,11 @@ type StateCorrection struct {
 
 func NewStateManager(dataDir string) (*StateManager, error) {
 	if dataDir == "" {
-		return nil, fmt.Errorf("state data directory is empty")
+		return nil, i18n.Errorf("state data directory is empty")
 	}
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create state directory: %w", err)
+		return nil, i18n.Errorf("create state directory: %w", err)
 	}
 
 	manager := &StateManager{
@@ -85,11 +85,11 @@ func (m *StateManager) Load() error {
 		if os.IsNotExist(err) {
 			return m.saveLocked()
 		}
-		return fmt.Errorf("read state file: %w", err)
+		return i18n.Errorf("read state file: %w", err)
 	}
 
 	if err := json.Unmarshal(data, &m.state); err != nil {
-		return fmt.Errorf("parse state file: %w", err)
+		return i18n.Errorf("parse state file: %w", err)
 	}
 
 	if m.state.Modules == nil {
@@ -108,15 +108,15 @@ func (m *StateManager) saveLocked() error {
 	m.state.UpdatedAt = time.Now().UTC()
 	data, err := json.MarshalIndent(m.state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal state: %w", err)
+		return i18n.Errorf("marshal state: %w", err)
 	}
 
 	tmpPath := m.dataPath + ".tmp"
 	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
-		return fmt.Errorf("write state temp file: %w", err)
+		return i18n.Errorf("write state temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, m.dataPath); err != nil {
-		return fmt.Errorf("replace state file: %w", err)
+		return i18n.Errorf("replace state file: %w", err)
 	}
 	return nil
 }
@@ -139,10 +139,10 @@ func (m *StateManager) UpdateModule(name, version string, state module.State) er
 	defer m.mu.Unlock()
 
 	if name == "" {
-		return fmt.Errorf("module name is required")
+		return i18n.Errorf("module name is required")
 	}
 
-	m.pushSnapshotLocked(fmt.Sprintf("update module %s", name))
+	m.pushSnapshotLocked(i18n.T("update module %s", name))
 	m.state.Modules[name] = ModuleState{
 		Name:      name,
 		Version:   version,
@@ -164,10 +164,10 @@ func (m *StateManager) RollbackTo(snapshotID string) error {
 		}
 	}
 	if index == -1 {
-		return fmt.Errorf("snapshot %s not found", snapshotID)
+		return i18n.Errorf("snapshot %s not found", snapshotID)
 	}
 
-	m.pushSnapshotLocked("pre-rollback")
+	m.pushSnapshotLocked(i18n.T("pre-rollback"))
 	m.state.Modules = cloneModules(m.state.History[index].Modules)
 	return m.saveLocked()
 }
@@ -177,10 +177,10 @@ func (m *StateManager) RollbackLast() error {
 	defer m.mu.Unlock()
 
 	if len(m.state.History) == 0 {
-		return fmt.Errorf("no snapshots available")
+		return i18n.Errorf("no snapshots available")
 	}
 	last := m.state.History[len(m.state.History)-1]
-	m.pushSnapshotLocked("pre-rollback")
+	m.pushSnapshotLocked(i18n.T("pre-rollback"))
 	m.state.Modules = cloneModules(last.Modules)
 	return m.saveLocked()
 }
@@ -209,7 +209,7 @@ func (m *StateManager) Reconcile() ([]StateCorrection, error) {
 	}
 
 	if len(corrections) > 0 {
-		m.pushSnapshotLocked("reconcile")
+		m.pushSnapshotLocked(i18n.T("reconcile"))
 		if err := m.saveLocked(); err != nil {
 			return nil, err
 		}

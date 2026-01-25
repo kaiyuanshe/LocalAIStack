@@ -1,9 +1,10 @@
 package module
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 var constraintPattern = regexp.MustCompile(`^(==|=|!=|>=|<=|>|<)?\s*([0-9]+(?:\.[0-9]+){0,2})$`)
@@ -12,7 +13,7 @@ func ParseModuleDependency(value string) (string, *VersionConstraint, error) {
 	parts := strings.SplitN(value, "@", 2)
 	name := strings.TrimSpace(parts[0])
 	if name == "" {
-		return "", nil, fmt.Errorf("module name is required")
+		return "", nil, i18n.Errorf("module name is required")
 	}
 	if len(parts) == 1 {
 		return name, nil, nil
@@ -26,11 +27,11 @@ func ParseModuleDependency(value string) (string, *VersionConstraint, error) {
 
 func ParseConstraint(value string) (VersionConstraint, error) {
 	if value == "" {
-		return VersionConstraint{}, fmt.Errorf("constraint is required")
+		return VersionConstraint{}, i18n.Errorf("constraint is required")
 	}
 	matches := constraintPattern.FindStringSubmatch(value)
 	if matches == nil {
-		return VersionConstraint{}, fmt.Errorf("invalid constraint %q", value)
+		return VersionConstraint{}, i18n.Errorf("invalid constraint %q", value)
 	}
 	operator := matches[1]
 	versionValue := matches[2]

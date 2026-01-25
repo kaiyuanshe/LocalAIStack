@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 )
 
@@ -20,7 +21,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Short: "Install a module",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Installing module: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Installing module: %s", args[0]))
 		},
 	}
 
@@ -29,7 +30,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Short: "Uninstall a module",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Uninstalling module: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Uninstalling module: %s", args[0]))
 		},
 	}
 
@@ -37,7 +38,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Use:   "list",
 		Short: "List all available modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Available modules:")
+			cmd.Println(i18n.T("Available modules:"))
 		},
 	}
 
@@ -58,7 +59,7 @@ func RegisterServiceCommands(rootCmd *cobra.Command) {
 		Short: "Start a service",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Starting service: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Starting service: %s", args[0]))
 		},
 	}
 
@@ -67,7 +68,7 @@ func RegisterServiceCommands(rootCmd *cobra.Command) {
 		Short: "Stop a service",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Stopping service: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Stopping service: %s", args[0]))
 		},
 	}
 
@@ -76,7 +77,7 @@ func RegisterServiceCommands(rootCmd *cobra.Command) {
 		Short: "Get service status",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Service status: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Service status: %s", args[0]))
 		},
 	}
 
@@ -97,7 +98,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		Short: "Download a model",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Pulling model: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Pulling model: %s", args[0]))
 		},
 	}
 
@@ -105,7 +106,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		Use:   "list",
 		Short: "List downloaded models",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Downloaded models:")
+			cmd.Println(i18n.T("Downloaded models:"))
 		},
 	}
 
@@ -114,7 +115,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		Short: "Search for models",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Searching for: %s\n", args[0])
+			cmd.Printf("%s\n", i18n.T("Searching for: %s", args[0]))
 		},
 	}
 
@@ -136,7 +137,7 @@ func RegisterSystemCommands(rootCmd *cobra.Command) {
 		Use:   "detect",
 		Short: "Detect hardware capabilities",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Detecting hardware...")
+			cmd.Println(i18n.T("Detecting hardware..."))
 		},
 	}
 
@@ -144,7 +145,7 @@ func RegisterSystemCommands(rootCmd *cobra.Command) {
 		Use:   "info",
 		Short: "Show system information",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("System information:")
+			cmd.Println(i18n.T("System information:"))
 		},
 	}
 
@@ -164,9 +165,9 @@ func RegisterProviderCommands(rootCmd *cobra.Command) {
 		Use:   "list",
 		Short: "List available LLM providers",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Available LLM providers:")
+			cmd.Println(i18n.T("Available LLM providers:"))
 			for _, provider := range llm.BuiltInProviders() {
-				cmd.Printf("- %s\n", provider)
+				cmd.Printf("%s\n", i18n.T("- %s", provider))
 			}
 		},
 	}

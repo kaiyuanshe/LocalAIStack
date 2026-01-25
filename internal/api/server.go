@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/control"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 )
 
@@ -41,7 +42,7 @@ func NewServer(cfg *config.Config, controlLayer *control.ControlLayer) *Server {
 }
 
 func (s *Server) Start() error {
-	log.Info().Str("addr", s.server.Addr).Msg("Starting API server")
+	log.Info().Str("addr", s.server.Addr).Msg(i18n.T("Starting API server"))
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
@@ -49,7 +50,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() error {
-	log.Info().Msg("Stopping API server")
+	log.Info().Msg(i18n.T("Stopping API server"))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return s.server.Shutdown(ctx)
@@ -74,7 +75,7 @@ type providersResponse struct {
 func (s *Server) providersHandler(w http.ResponseWriter, r *http.Request) {
 	registry, err := llm.NewRegistryFromConfig(s.cfg.LLM)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load providers: %v", err), http.StatusInternalServerError)
+		http.Error(w, i18n.T("failed to load providers: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -85,7 +86,7 @@ func (s *Server) providersHandler(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := json.Marshal(response)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
+		http.Error(w, i18n.T("failed to encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
 

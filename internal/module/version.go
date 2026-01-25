@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
 
 var versionPattern = regexp.MustCompile(`^\d+(?:\.\d+){0,2}$`)
@@ -17,7 +19,7 @@ type Version struct {
 
 func ParseVersion(value string) (Version, error) {
 	if !versionPattern.MatchString(value) {
-		return Version{}, fmt.Errorf("invalid version format: %q", value)
+		return Version{}, i18n.Errorf("invalid version format: %q", value)
 	}
 
 	parts := strings.Split(value, ".")
@@ -25,7 +27,7 @@ func ParseVersion(value string) (Version, error) {
 	for i, part := range parts {
 		number, err := strconv.Atoi(part)
 		if err != nil {
-			return Version{}, fmt.Errorf("invalid version segment %q: %w", part, err)
+			return Version{}, i18n.Errorf("invalid version segment %q: %w", part, err)
 		}
 		parsed[i] = number
 	}
