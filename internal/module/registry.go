@@ -3,7 +3,6 @@ package module
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
