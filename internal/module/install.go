@@ -1,9 +1,11 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -121,6 +123,7 @@ func Install(name string) error {
 			}
 		}
 	}
+	planSteps = ensureServiceSteps(planSteps, steps)
 
 	vars := flattenDefaults(spec.Configuration.Defaults)
 	for _, step := range planSteps {
@@ -139,7 +142,7 @@ func runPreconditions(preconditions []installPrecondition, moduleDir string) err
 		}
 		switch tool {
 		case "shell":
-			output, exitCode, err := runShellCommand(pre.Command, moduleDir)
+			output, exitCode, err := runShellCommand(pre.Command, moduleDir, false)
 			if err != nil {
 				return i18n.Errorf("precondition %s failed: %w", pre.ID, err)
 			}
@@ -243,10 +246,30 @@ func filterStepsByID(steps []installStep, ids []string) []installStep {
 	return filtered
 }
 
+func ensureServiceSteps(selected, all []installStep) []installStep {
+	if len(all) == 0 {
+		return selected
+	}
+	included := make(map[string]bool, len(selected))
+	for _, step := range selected {
+		included[step.ID] = true
+	}
+	for _, step := range all {
+		if !included[step.ID] && isServiceStep(step) {
+			selected = append(selected, step)
+		}
+	}
+	return selected
+}
+
+func isServiceStep(step installStep) bool {
+	return strings.TrimSpace(step.Expected.Unit) != "" || strings.TrimSpace(step.Expected.Service) != ""
+}
+
 func runInstallStep(moduleName, moduleDir string, step installStep, vars map[string]string) error {
 	switch strings.TrimSpace(step.Tool) {
 	case "shell":
-		output, exitCode, err := runShellCommand(step.Command, moduleDir)
+		output, exitCode, err := runShellCommand(step.Command, moduleDir, true)
 		if err != nil {
 			return i18n.Errorf("install step %s failed: %w", step.ID, err)
 		}
@@ -272,9 +295,30 @@ func runInstallStep(moduleName, moduleDir string, step installStep, vars map[str
 	return nil
 }
 
-func runShellCommand(command, moduleDir string) (string, int, error) {
+func runShellCommand(command, moduleDir string, stream bool) (string, int, error) {
 	cmd := exec.Command("bash", "-c", command)
 	cmd.Dir = moduleDir
+	if stream {
+		var buffer bytes.Buffer
+		writer := io.MultiWriter(&buffer, os.Stdout)
+		cmd.Stdout = writer
+		cmd.Stderr = writer
+		err := cmd.Run()
+		exitCode := 0
+		if cmd.ProcessState != nil {
+			exitCode = cmd.ProcessState.ExitCode()
+		}
+		output := buffer.String()
+		if err != nil {
+			message := strings.TrimSpace(output)
+			if message == "" {
+				return "", exitCode, err
+			}
+			return message, exitCode, i18n.Errorf(message)
+		}
+		return output, exitCode, nil
+	}
+
 	output, err := cmd.CombinedOutput()
 	exitCode := 0
 	if cmd.ProcessState != nil {
