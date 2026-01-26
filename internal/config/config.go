@@ -211,6 +211,15 @@ func LoadConfigWithOptions(opts LoadOptions) (*Config, error) {
 			cfg.I18n.Language = legacyLanguage
 		}
 	}
+	if strings.TrimSpace(cfg.I18n.Translation.APIKey) == "" {
+		cfg.I18n.Translation.APIKey = cfg.LLM.APIKey
+	}
+	if strings.TrimSpace(cfg.I18n.Translation.BaseURL) == "" {
+		cfg.I18n.Translation.BaseURL = cfg.LLM.BaseURL
+	}
+	if strings.TrimSpace(cfg.I18n.Translation.Provider) == "" {
+		cfg.I18n.Translation.Provider = cfg.LLM.Provider
+	}
 
 	return cfg, nil
 }
