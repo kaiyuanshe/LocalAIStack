@@ -66,6 +66,8 @@ type RuntimeConfig struct {
 type LLMConfig struct {
 	Provider       string `mapstructure:"provider"`
 	Model          string `mapstructure:"model"`
+	APIKey         string `mapstructure:"api_key"`
+	BaseURL        string `mapstructure:"base_url"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
@@ -119,8 +121,9 @@ func DefaultConfig() *Config {
 			LogDir:        "/var/lib/localaistack/runtime",
 		},
 		LLM: LLMConfig{
-			Provider:       "eino",
-			Model:          "",
+			Provider:       "siliconflow",
+			Model:          "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+			BaseURL:        "https://api.siliconflow.cn/v1/chat/completions",
 			TimeoutSeconds: 30,
 		},
 		I18n: I18nConfig{
@@ -239,6 +242,8 @@ func applyDefaults(v *viper.Viper, defaults *Config) {
 
 	v.SetDefault("llm.provider", defaults.LLM.Provider)
 	v.SetDefault("llm.model", defaults.LLM.Model)
+	v.SetDefault("llm.api_key", defaults.LLM.APIKey)
+	v.SetDefault("llm.base_url", defaults.LLM.BaseURL)
 	v.SetDefault("llm.timeout_seconds", defaults.LLM.TimeoutSeconds)
 
 	v.SetDefault("i18n.language", defaults.I18n.Language)

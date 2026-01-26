@@ -28,8 +28,10 @@ runtime:
   log_dir: /var/lib/localaistack/runtime
 
 llm:
-  provider: eino
-  model: ""
+  provider: siliconflow
+  model: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+  api_key: ""
+  base_url: "https://api.siliconflow.cn/v1/chat/completions"
   timeout_seconds: 30
 
 i18n:

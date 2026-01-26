@@ -1,5 +1,5 @@
 package llm
 
 func BuiltInProviders() []string {
-	return []string{"eino"}
+	return []string{"eino", "siliconflow"}
 }
