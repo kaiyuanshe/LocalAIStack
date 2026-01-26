@@ -1,222 +1,401 @@
-"# LocalAIStack Base Info\n\n": "# LocalAIStack 基本信息\n\n"
-"## Raw Command Outputs\n\n": "## 原始命令输出\n\n"
-"## System Information\n\n": "## 系统信息\n\n"
-"### CPU\n": "### CPU\n"
-"### Disk\n": "### 磁盘\n"
-"### GPU\n": "### GPU\n"
-"### Kernel\n": "### 内核\n"
-"### Memory\n": "### 内存\n"
-"### Network\n": "### 网络\n"
-"### OS\n": "### 操作系统\n"
-"### Runtime\n": "### 运行时\n"
-"### Version\n": "### 版本\n"
-"%.1f %cB": "%.1f %cB"
-"%d B": "%d B"
-"%s [%s]: ": "%s [%s]: "
-"%s bytes": "%s 字节"
-"%s kB": "%s kB"
-"%s: ": "%s: "
-"%s; stderr: %s": "%s；stderr：%s"
-"- %s": "- %s"
-"- Docker: %s\n- Podman: %s\n- Capabilities: %s\n\n": "- Docker：%s\n- Podman：%s\n- 功能：%s\n\n"
-"- GPU: %s\n\n": "- GPU：%s\n\n"
-"- Hostname: %s\n- Internal IPs: %s\n\n": "- 主机名：%s\n- 内网 IP：%s\n\n"
-"- Kernel: %s\n\n": "- 内核：%s\n\n"
-"- LocalAIStack: %s\n\n": "- LocalAIStack：%s\n\n"
-"- Model: %s\n- Cores: %d\n\n": "- 型号：%s\n- 核心：%d\n\n"
-"- OS: %s\n- Arch: %s\n\n": "- 操作系统：%s\n- 架构：%s\n\n"
-"- Timestamp: %s\n\n": "- 时间戳：%s\n\n"
-"- Total: %s\n\n": "- 总量：%s\n\n"
-"- Total: %s\n- Available: %s\n\n": "- 总量：%s\n- 可用：%s\n\n"
-"<summary>%s</summary>\n\n": "<summary>%s</summary>\n\n"
-"API server error": "API 服务器错误"
-"Available LLM providers:": "可用的 LLM 提供商："
-"Available modules:": "可用模块："
-"Base system info written to %s": "基础系统信息已写入 %s"
-"Configuration written to %s": "配置已写入 %s"
-"Control layer started successfully": "控制层启动成功"
-"Detect hardware capabilities": "检测硬件能力"
-"Detecting hardware...": "正在检测硬件..."
-"Downloaded models:": "已下载模型："
-"Error binding config flag: %v": "绑定配置参数出错：%v"
-"Error binding verbose flag: %v": "绑定详细输出参数出错：%v"
-"Error reading config file: %v": "读取配置文件出错：%v"
-"Error stopping API server": "停止 API 服务器出错"
-"Error stopping control layer": "停止控制层出错"
-"Error: %v": "错误：%v"
-"Failed to initialize control layer": "初始化控制层失败"
-"Failed to load configuration: %v": "加载配置失败：%v"
-"Failed to open log file, using stdout": "无法打开日志文件，改用 stdout"
-"Failed to start control layer": "启动控制层失败"
-"Get service status": "获取服务状态"
-"Install a module": "安装模块"
-"Initialize LocalAIStack interactive configuration": "初始化 LocalAIStack 交互式配置"
-"Initializing control layer": "正在初始化控制层"
-"Initializing hardware detector": "正在初始化硬件检测器"
-"Initializing policy engine": "正在初始化策略引擎"
-"Initializing state manager": "正在初始化状态管理器"
-"Installing module: %s": "正在安装模块：%s"
-"Invalid log level, using info": "无效的日志级别，使用 info"
-"List all available modules": "列出所有可用模块"
-"List available LLM providers": "列出可用的 LLM 提供商"
-"List downloaded models": "列出已下载模型"
-"LocalAIStack - Local AI workstation management": "LocalAIStack - 本地 AI 工作站管理"
-"LocalAIStack is an open, modular software stack for building and operating local AI workstations. It provides unified control over AI development environments, inference runtimes, models, and applications.": "LocalAIStack 是一个开放、模块化的软件栈，用于构建和运行本地 AI 工作站。它提供对 AI 开发环境、推理运行时、模型和应用的统一管理。"
-"Manage AI models": "管理 AI 模型"
-"Manage LLM providers": "管理 LLM 提供商"
-"Manage services": "管理服务"
-"Manage software modules": "管理软件模块"
-"Preferred interaction language": "首选交互语言"
-"Preferred language": "首选语言"
-"Search for models": "搜索模型"
-"Pulling model: %s": "正在拉取模型：%s"
-"Searching for: %s": "正在搜索：%s"
-"Service status: %s": "服务状态：%s"
-"Show system information": "显示系统信息"
-"Shutdown complete": "关闭完成"
-"Shutting down...": "正在关闭..."
-"SiliconFlow API Key": "SiliconFlow API 密钥"
-"SiliconFlow API key": "SiliconFlow API 密钥"
-"Start a service": "启动服务"
-"Starting API server": "正在启动 API 服务器"
-"Starting LocalAIStack server": "正在启动 LocalAIStack 服务器"
-"Starting control layer": "正在启动控制层"
-"Starting service: %s": "正在启动服务：%s"
-"Stop a service": "停止服务"
-"Stopping API server": "正在停止 API 服务器"
-"Stopping control layer": "正在停止控制层"
-"Stopping service: %s": "正在停止服务：%s"
-"System information:": "系统信息："
-"System management": "系统管理"
-"Translation API base URL": "翻译 API 基础地址"
-"Translation model": "翻译模型"
-"Translation provider": "翻译提供商"
-"Translation timeout in seconds": "翻译超时（秒）"
-"Uninstall a module": "卸载模块"
-"Uninstalling module: %s": "正在卸载模块：%s"
-"Download a model": "下载模型"
-"config file (default is $HOME/.localaistack/config.yaml)": "配置文件（默认 $HOME/.localaistack/config.yaml）"
-"verbose output": "详细输出"
-"Version": "版本"
-"```text\n": "```text\n"
-"available": "可用"
-"available: %s": "可用：%s"
-"checksum mismatch for %s: expected %s got %s": "%s 校验和不匹配：期望 %s，实际 %s"
-"circular dependency detected at %s": "检测到循环依赖：%s"
-"config file path (default is ~/.localaistack/config.yaml)": "配置文件路径（默认 ~/.localaistack/config.yaml）"
-"constraint is required": "需要版本约束"
-"container image is required": "需要容器镜像"
-"container runtime %q not found": "未找到容器运行时 %q"
-"container runtime did not return container id": "容器运行时未返回容器 ID"
-"container runtime disabled": "容器运行时已禁用"
-"create base directory: %w": "创建基础目录：%w"
-"create log dir: %w": "创建日志目录：%w"
-"create log file: %w": "创建日志文件：%w"
-"create output directory: %w": "创建输出目录：%w"
-"create state directory: %w": "创建状态目录：%w"
-"create translation request: %w": "创建翻译请求：%w"
-"decode translation response: %w": "解析翻译响应：%w"
-"description is required": "需要描述"
-"docker=%s; podman=%s": "docker=%s；podman=%s"
-"eino provider not configured": "eino 提供商未配置"
-"empty size": "大小为空"
-"error: %s": "错误：%s"
-"failed to close log file": "关闭日志文件失败"
-"failed to detect CPU: %w": "检测 CPU 失败：%w"
-"failed to detect GPUs: %w": "检测 GPU 失败：%w"
-"failed to detect hardware: %w": "检测硬件失败：%w"
-"failed to detect memory: %w": "检测内存失败：%w"
-"failed to detect storage: %w": "检测存储失败：%w"
-"failed to encode response: %v": "编码响应失败：%v"
-"failed to evaluate policies: %w": "评估策略失败：%w"
-"failed to initialize hardware detector: %w": "初始化硬件检测器失败：%w"
-"failed to initialize policy engine: %w": "初始化策略引擎失败：%w"
-"failed to initialize state manager: %w": "初始化状态管理器失败：%w"
-"failed to load providers: %v": "加载提供商失败：%v"
-"get home dir: %w": "获取主目录失败：%w"
-"hardware detector not initialized": "硬件检测器未初始化"
-"hardware profile is nil": "硬件配置为空"
-"hardware profile not available": "硬件配置不可用"
-"invalid category %q": "无效类别 %q"
-"invalid constraint %q": "无效约束 %q"
-"invalid integrity.checksum value": "无效的 integrity.checksum 值"
-"invalid module dependency %q: %w": "无效的模块依赖 %q：%w"
-"invalid runtime mode %q": "无效运行时模式 %q"
-"invalid size: %s": "无效大小：%s"
-"invalid size: %w": "无效大小：%w"
-"invalid version format: %q": "无效版本格式：%q"
-"invalid version segment %q: %w": "无效版本段 %q：%w"
-"kill native process: %w": "终止本地进程失败：%w"
-"language cannot be empty": "语言不能为空"
-"load module manifest %s: %w": "加载模块清单 %s 失败：%w"
-"marshal json: %w": "序列化 JSON 失败：%w"
-"marshal state: %w": "序列化状态失败：%w"
-"marshal translation request: %w": "序列化翻译请求失败：%w"
-"module %q already running": "模块 %q 已在运行"
-"module %q not found": "未找到模块 %q"
-"module %s not found in registry": "注册表中未找到模块 %s"
-"module name is required": "需要模块名称"
-"name is required": "需要名称"
-"native process exit: %w": "本地进程退出：%w"
-"native runtime disabled": "本地运行时已禁用"
-"network info": "网络信息"
-"no available versions for %s satisfy constraint": "没有满足约束的 %s 可用版本"
-"no container runtime found": "未找到容器运行时"
-"no matching policies for hardware profile": "没有匹配硬件配置的策略"
-"no output": "无输出"
-"no policies loaded": "未加载任何策略"
-"no runtime modes available after policy and config filters": "策略和配置过滤后没有可用的运行时模式"
-"no runtime modes declared": "未声明运行时模式"
-"no snapshots available": "没有可用的快照"
-"open output file: %w": "打开输出文件失败：%w"
-"output file exists: %s": "输出文件已存在：%s"
-"output path is required": "需要输出路径"
-"parse policy file: %w": "解析策略文件失败：%w"
-"parse state file: %w": "解析状态文件失败：%w"
-"policy engine not initialized": "策略引擎未初始化"
-"pre-rollback": "回滚前"
-"provider %q already registered": "提供商 %q 已注册"
-"provider %q not found": "未找到提供商 %q"
-"provider has empty name": "提供商名称为空"
-"provider is nil": "提供商为空"
-"read policy file: %w": "读取策略文件失败：%w"
-"read state file: %w": "读取状态文件失败：%w"
-"reconcile": "校准"
-"register module %s: %w": "注册模块 %s 失败：%w"
-"registry is required": "需要注册表"
-"replace state file: %w": "替换状态文件失败：%w"
-"runtime.modes must include at least one entry": "runtime.modes 必须至少包含一个条目"
-"snapshot %s not found": "未找到快照 %s"
-"start container: %w (%s)": "启动容器失败：%w（%s）"
-"start log stream: %s": "启动日志流失败：%s"
-"start native process: %w": "启动本地进程失败：%w"
-"stat output file: %w": "获取输出文件状态失败：%w"
-"state data directory is empty": "状态数据目录为空"
-"stderr:": "stderr："
-"stdout:": "stdout："
-"stop container: %w (%s)": "停止容器失败：%w（%s）"
-"timeout stopping native process": "停止本地进程超时"
-"translation base URL is empty": "翻译基础 URL 为空"
-"translation provider is nil": "翻译提供商为空"
-"translation request failed with status %d": "翻译请求失败，状态码 %d"
-"translation request failed: %w": "翻译请求失败：%w"
-"translation response has no choices": "翻译响应没有候选项"
-"unable to select execution mode": "无法选择执行模式"
-"unknown": "未知"
-"unknown (%s): %s": "未知（%s）：%s"
-"unknown: %s": "未知：%s"
-"unknown: cpu model not found": "未知：未找到 CPU 型号"
-"unknown: meminfo missing MemTotal": "未知：meminfo 缺少 MemTotal"
-"unknown: no GPU entries": "未知：没有 GPU 条目"
-"unknown: no internal IPs": "未知：没有内网 IP"
-"unknown: unsupported OS": "未知：不支持的操作系统"
-"unsupported OS": "不支持的操作系统"
-"unsupported execution mode: %s": "不支持的执行模式：%s"
-"unsupported format: %s": "不支持的格式：%s"
-"update module %s": "更新模块 %s"
-"version %q is invalid: %w": "版本 %q 无效：%w"
-"version conflict for %s: selected %s does not satisfy %s%s": "%s 版本冲突：已选 %s 不满足 %s%s"
-"version is required": "需要版本"
-"write output file: %w": "写入输出文件失败：%w"
-"write state temp file: %w": "写入临时状态文件失败：%w"
-"\n```\n\n": "\n```\n\n"
+? |4+
+    ```
+
+: 当然可以！请提供您需要翻译的文本，我会将其从英语翻译成中文。
+? |+
+    # LocalAIStack Base Info
+
+: '# LocalAIStack 基本信息'
+? |+
+    ## Raw Command Outputs
+
+: '## 原始命令的输出结果'
+? |+
+    ## System Information
+
+: '## 系统信息'
+? |
+    ### CPU
+: '### CPU'
+? |
+    ### Disk
+: '### 磁盘'
+? |
+    ### GPU
+: '### GPU（图形处理器）'
+? |
+    ### Kernel
+: '### 内核'
+? |
+    ### Memory
+: '### 内存'
+? |
+    ### Network
+: '### 网络'
+? |
+    ### OS
+: '### 操作系统（OS）'
+? |
+    ### Runtime
+: '### 运行时（Runtime）'
+? |
+    ### Version
+: '### 版本'
+'%.1f %cB': '%.1f %cB'
+'%s [%s]: ': '%s [%s]:'
+'%s kB': '%s 千字节'
+? |+
+    - Docker: %s
+    - Podman: %s
+    - Capabilities: %s
+
+: "- Docker: %s  \n- Podman: %s  \n- 功能（Capabilities）: %s"
+? |+
+    - GPU: %s
+
+: '- GPU：%s'
+? |+
+    - Hostname: %s
+    - Internal IPs: %s
+
+: "- 主机名：%s  \n- 内部 IP 地址：%s"
+? |+
+    - Kernel: %s
+
+: '- 内核：%s'
+? |+
+    - LocalAIStack: %s
+
+: '- LocalAIStack: %s'
+? |+
+    - Model: %s
+    - Cores: %d
+
+: "- 模型：%s  \n- 核心数量：%d"
+? |+
+    - OS: %s
+    - Arch: %s
+
+: "- 操作系统：%s  \n- 架构：%s"
+? |+
+    - Timestamp: %s
+
+: '- 时间戳：%s'
+? |+
+    - Total: %s
+
+: '- 总计：%s'
+? |+
+    - Total: %s
+    - Available: %s
+
+: |-
+    - 总计：%s
+    - 可用：%s
+? |+
+    <summary>%s</summary>
+
+: <summary>%s</summary>
+? |+
+    ```
+
+: 当然可以！请提供您需要翻译的文本。
+? |
+    ```text
+: 当然可以！请提供您需要翻译的文本，我会为您进行翻译。
+Base system info written to %s: 基础系统信息已写入到 %s 文件中。
+Configuration written to %s: 配置信息已写入到 %s 文件中。
+Detect hardware capabilities: 检测硬件功能
+Download a model: 下载一个模型
+Generate the autocompletion script for bash: 生成 Bash 自动补全脚本：
+Generate the autocompletion script for fish: |-
+    由于“fish”是一个非常通用的术语，它可以指代很多不同的东西（比如一种鱼、一种编程语言、一个工具名等），因此很难为其生成一个具体的“自动完成脚本”。如果您能提供更多关于“fish”的上下文信息（比如它是指哪种编程语言或工具），我可能能够给出更准确的建议。
+
+    不过，如果您是指某种特定的编程语言（比如 Python 中的 `fish` 模块），那么我可以为您生成一个简单的自动完成脚本。以下是一个使用 Python 的 `fish` 模块的自动完成脚本的示例：
+
+    ```python
+    # fish.py
+
+    def fish_command(command):
+        # 这里可以添加一些逻辑来解析命令并执行相应的操作
+        if command == "help":
+            print("Usage: fish <command>")
+            return ""
+        elif command == "list":
+            # 假设这里有一个命令列表
+            commands = ["command1", "command2", "command3"]
+            return commands
+        else:
+            print("Unknown command. Please try again.")
+            return ""
+
+    # 示例使用
+    command = input("Enter a command (e.g. help, list): ")
+    result = fish_command(command)
+    print(result)
+    ```
+
+    在这个脚本中，`fish_command` 函数接收一个命令作为参数，然后根据命令的不同执行相应的操作。如果您需要为其他特定的工具或编程语言生成类似的自动完成脚本，请提供更多详细信息！
+? |
+    Generate the autocompletion script for localaistack for the specified shell.
+    See each sub-command's help for details on how to use the generated script.
+: "为指定的 shell 生成 localizationstack 的自动完成脚本。  \n有关如何使用生成的脚本的详细信息，请参阅每个子命令的帮助文档。"
+Generate the autocompletion script for powershell: |-
+    以下是一个简单的 PowerShell 自动补全脚本示例：
+
+    ```powershell
+    # 自动补全脚本
+    function AutoComplete() {
+        $ completions = @(
+            "Get-Item", "Set-Item", "Remove-Item", "New-Item",
+            "Test-String", "Write-String", "Stop-Process", "Start-Process",
+            "Dir", "Get-Date", "Sort-Object", "Sort-Array"
+        )
+
+        $currentCommand = Get-Command
+
+        foreach ($command in $completions) {
+            if ($currentCommand.Name -like "$command") {
+                Write-Host "建议的补全选项: $command"
+            }
+        }
+    }
+
+    # 测试自动补全功能
+    AutoComplete
+    ```
+
+    将上述脚本保存为一个 `.ps1` 文件（例如 `AutoComplete.ps1`），然后在 PowerShell 中运行它。当你输入一个命令的前几个字符时，脚本会显示与该命令匹配的推荐补全选项。
+? |
+    Generate the autocompletion script for powershell.
+
+    To load completions in your current shell session:
+
+    	localaistack completion powershell | Out-String | Invoke-Expression
+
+    To load completions for every new session, add the output of the above command
+    to your powershell profile.
+: |-
+    以下是用于 PowerShell 的自动补全脚本：
+
+    **在当前 shell 会话中加载自动补全功能：**
+
+    ```powershell
+    local aistack completion powershell | Out-String | Invoke-Expression
+    ```
+
+    **为了在每个新的 shell 会话中都加载自动补全功能，请将上述命令的输出添加到您的 PowerShell 配置文件（`.ps1` 文件）中：**
+
+    1. 打开您的 PowerShell 配置文件（如果还没有的话）。
+    2. 在文件末尾添加以下内容：
+
+    ```powershell
+    $aistack completion powershell | Out-String | Invoke-Expression
+    ```
+    3. 保存文件并关闭编辑器。
+    4. 重新启动 PowerShell，此时新的会话将自动具备自动补全功能。
+? |
+    Generate the autocompletion script for the bash shell.
+
+    This script depends on the 'bash-completion' package.
+    If it is not installed already, you can install it via your OS's package manager.
+
+    To load completions in your current shell session:
+
+    	source <(localaistack completion bash)
+
+    To load completions for every new session, execute once:
+
+    #### Linux:
+
+    	localaistack completion bash > /etc/bash_completion.d/localaistack
+
+    #### macOS:
+
+    	localaistack completion bash > $(brew --prefix)/etc/bash_completion.d/localaistack
+
+    You will need to start a new shell for this setup to take effect.
+: |-
+    以下是用于 Bash shell 的自动补全脚本：
+
+    该脚本依赖于 `bash-completion` 包。如果尚未安装该包，您可以通过操作系统的包管理器进行安装。
+
+    **在当前 shell 会话中加载自动补全功能：**
+    ```bash
+    source <(localaistack completion bash)
+    ```
+
+    **为了在每个新的 shell 会话中都加载自动补全功能，请执行以下命令（只需执行一次）：**
+
+    #### Linux：
+    ```bash
+    localaistack completion bash > /etc/bash_completion.d/localaistack
+    ```
+
+    #### macOS：
+    ```bash
+    localaistack completion bash > $(brew --prefix)/etc/bash_completion.d/localaistack
+    ```
+
+    请注意：设置完成后，需要重新启动一个新的 shell 才能使自动补全功能生效。
+? |
+    Generate the autocompletion script for the fish shell.
+
+    To load completions in your current shell session:
+
+    	localaistack completion fish | source
+
+    To load completions for every new session, execute once:
+
+    	localaistack completion fish > ~/.config/fish/completions/localaistack.fish
+
+    You will need to start a new shell for this setup to take effect.
+: |-
+    以下是用于 Fish Shell 的自动补全脚本：
+
+    **在当前 shell 会话中加载自动补全功能：**
+
+    ```bash
+    local aistack completion fish | source
+    ```
+
+    **为每个新的 shell 会话加载自动补全功能（只需执行一次即可）：**
+
+    ```bash
+    local aistack completion fish > ~/.config/fish/completions/localaistack.fish
+    ```
+
+    请注意：要使这些设置生效，你需要重新启动一个新的 Fish Shell 实例。
+Generate the autocompletion script for the specified shell: |-
+    根据您的要求，以下是一个简单的自动补全脚本，适用于大多数常见的 shell（如 Bash、Zsh 等）：
+
+    ```bash
+    #!/bin/bash
+
+    function autocompletion() {
+      local completions=()
+      local current_word=$1
+
+      # 根据当前输入的单词，从预定义的补全列表中生成建议
+      for item in "${completions[@]}"; do
+        if [[ $item == "${current_word}" ]]; then
+          echo "$item"
+          return 1
+        fi
+      done
+
+      # 如果没有找到匹配的补全项，提示用户输入更多内容
+      echo "No matching completion found. Please provide more details."
+    }
+
+    # 示例：使用 autocompletion 函数
+    autocompletion "hello"
+    ```
+
+    将上述脚本保存为 `autocompletion.sh`，然后通过运行 `chmod +x autocompletion.sh` 使其可执行。接下来，您可以在 shell 中使用 `autocompletion` 函数来获取补全建议。例如：
+
+    ```bash
+    autocompletion "hello"
+    ```
+
+    这个脚本会显示与 “hello” 相关的补全选项。您可以根据需要修改 `completions` 变量中的内容，以包含更多的补全项。
+? |
+    Generate the autocompletion script for the zsh shell.
+
+    If shell completion is not already enabled in your environment you will need
+    to enable it.  You can execute the following once:
+
+    	echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+    To load completions in your current shell session:
+
+    	source <(localaistack completion zsh)
+
+    To load completions for every new session, execute once:
+
+    #### Linux:
+
+    	localaistack completion zsh > "${fpath[1]}/_localaistack"
+
+    #### macOS:
+
+    	localaistack completion zsh > $(brew --prefix)/share/zsh/site-functions/_localaistack
+
+    You will need to start a new shell for this setup to take effect.
+: |-
+    以下是为 zsh shell 编写的自动补全脚本：
+
+    如果您的环境中尚未启用 shell 自动补全功能，您需要先将其启用。您可以执行以下命令一次：
+
+    ```bash
+    echo "autoload -U compinit; compinit" >> ~/.zshrc
+    ```
+
+    要在当前 shell 会话中加载自动补全功能，请执行：
+
+    ```bash
+    source <(localaistack completion zsh)
+    ```
+
+    如果要为每个新的 shell 会话都加载自动补全功能，请执行以下命令（根据操作系统不同，路径会有所不同）：
+
+    #### Linux:
+
+    ```bash
+    localaistack completion zsh > "${fpath[1]}/_localaistack"
+    ```
+
+    #### macOS:
+
+    ```bash
+    localaistack completion zsh > $(brew --prefix)/share/zsh/site-functions/_localaistack
+    ```
+
+    请注意，这些设置需要通过启动一个新的 shell 会话才能生效。
+Generate the autocompletion script for zsh: 生成 zsh 的自动补全脚本：
+Get service status: 获取服务状态
+Help about any command: 关于任何命令的帮助信息
+? |-
+    Help provides help for any command in the application.
+    Simply type localaistack help [path to command] for full details.
+: "“帮助”功能可以为应用程序中的任何命令提供使用说明。  \n只需输入 `localaistack help [命令路径]`，即可查看详细的命令使用信息。"
+Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
+Install a module: 安装一个模块。
+List all available modules: 列出所有可用的模块。
+List available LLM providers: 以下是可用的大型语言模型（LLM）提供商列表：
+List downloaded models: 已下载的模型列表
+LocalAIStack - Local AI workstation management: LocalAIStack – 本地人工智能工作站管理
+? LocalAIStack is an open, modular software stack for building and operating local AI workstations. It provides unified control over AI development environments, inference runtimes, models, and applications.
+: LocalAIStack 是一个开源的、模块化的软件栈，用于构建和运行本地人工智能工作站。它提供了对人工智能开发环境、推理运行时、模型以及应用程序的统一管理功能。
+Manage AI models: 管理人工智能模型
+Manage LLM providers: 管理大型语言模型（LLM）提供商
+Manage services: 管理服务
+Manage software modules: 管理软件模块
+Preferred interaction language: 首选的交互语言
+Preferred language: 首选语言
+Search for models: 搜索模型
+Show system information: 显示系统信息
+SiliconFlow API Key: SiliconFlow API密钥
+SiliconFlow API key: SiliconFlow API密钥
+Start a service: 启动一个服务
+Stop a service: 停止一个服务
+System management: 系统管理
+Translation API base URL: 翻译 API 的基础 URL
+Translation model: 翻译模型
+Translation provider: 翻译服务提供商
+Translation timeout in seconds: 翻译超时时间（以秒为单位）
+Uninstall a module: 卸载一个模块
+'available: %s': 可用：%s
+config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认路径为 $HOME/.localaistack/config.yaml）
+config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
+disable completion descriptions: 禁用补全描述
+docker=%s; podman=%s: docker=%s; podman=%s
+'error: %s': 错误：%s
+help for init: "关于 `init` 的帮助信息：  \n`init` 是一个用于初始化系统或程序的命令或函数。它的具体用途取决于上下文。在 Linux 系统中，`init` 负责在系统启动时加载必要的服务（如内核模块、启动脚本等），并确保系统能够正常运行。在不同的编程语言和框架中，`init` 的实现也可能有所不同。例如，在 Python 中，你可能会使用 `init()` 函数来初始化一个对象；在 Java 中，你可能会使用构造函数来初始化一个类实例。  \n\n如果你需要更多关于 `init` 的详细信息，请提供更多的上下文或具体的编程语言/框架，以便我能给出更准确的帮助。"
+'stdout:': 'stdout:'
+'unknown (%s): %s': 未知（%s）：%s
+'unknown: %s': 未知：%s
+verbose output: 详细输出（verbose output）
+详细输出（verbose output）: 详细输出（verbose output）：
+详细输出（verbose output）：: 详细输出（verbose output）：
+配置文件（默认路径为 $HOME/.localaistack/config.yaml）: 配置文件（默认路径为 $HOME/.localaistack/config.yaml）
