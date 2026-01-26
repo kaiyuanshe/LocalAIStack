@@ -44,7 +44,8 @@ locales/*.yaml
 !configs/examples/*.yaml
 !locales/zh-cn.yaml
 !docs/modules.schema.yaml
-!modules/ollama/*.yaml
+!modules/**/manifest.yaml
+!modules/**/INSTALL.yaml
 
 # Log files
 *.log

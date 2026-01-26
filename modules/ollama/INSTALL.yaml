@@ -5,12 +5,11 @@ id: ollama
 category: runtime
 
 supported_platforms:
-  - ubuntu-22.04
-  - ubuntu-24.04
+  - linux/amd64
+  - linux/arm64
 
 install_modes:
   - native
-  - container
 
 rebuild_modes:
   - none
@@ -19,164 +18,100 @@ rebuild_modes:
 
 tools_required:
   - bash
-  - service_manager
+  - curl
+  - systemctl
 
 description:
-  purpose: >
-    Install and manage Ollama as a local LLM inference runtime on a single node.
+  purpose: Install and manage the Ollama runtime via systemd
   scope:
-    - single-node inference
-    - local-only API access
-    - developer and research usage
+    - install
+    - configure
+    - verify
+    - rollback
+    - uninstall
+    - purge
   non_goals:
-    - distributed inference
-    - model training
-    - multi-user access control
+    - manage models
+    - expose remote network access
 
 dependencies:
   system:
     - curl
     - ca-certificates
-    - systemd
-  modules: []
-  capabilities: []
-  optional:
-    gpu:
-      - cuda-runtime
 
 preconditions:
   - id: P10
-    intent: Verify OS version
-    tool: bash
-    command: lsb_release -rs
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
     expected:
-      one_of: ["22.04", "24.04"]
-    idempotent: true
-
+      equals: Linux
   - id: P20
-    intent: Ensure curl is available
-    tool: bash
-    command: command -v curl >/dev/null
+    intent: systemd available
+    tool: shell
+    command: command -v systemctl
     expected:
       exit_code: 0
-    idempotent: true
-
-  - id: P30
-    intent: Check port availability (11434)
-    tool: bash
-    command: ss -ltn | grep -E ':(11434)\b' || true
-    expected:
-      exit_code: 0
-    idempotent: true
 
 decision_matrix:
   default: native
-  rules:
-    - when:
-        shared_environment: true
-      use: container
-    - when:
-        prefer_isolation: true
-      use: container
+  rules: []
 
 environment_rebuild:
   detect:
-    - id: D10
-      intent: Detect existing ollama binary
-      tool: bash
-      command: which ollama || true
+    - id: R10
+      intent: Detect existing Ollama artifacts
+      tool: shell
+      command: test -f /usr/local/bin/ollama || test -f /etc/systemd/system/ollama.service
       expected:
         exit_code: 0
-      idempotent: true
-
-    - id: D20
-      intent: Detect systemd service unit
-      tool: bash
-      command: systemctl status ollama >/dev/null 2>&1 && echo "present" || true
-      expected:
-        exit_code: 0
-      idempotent: true
-
   soft_cleanup:
     - id: C10
-      intent: Soft cleanup (remove known conflicting installations, preserve data)
-      tool: bash
-      command: sudo bash scripts/cleanup_soft.sh
+      intent: Soft cleanup
+      tool: shell
+      command: bash scripts/cleanup_soft.sh
       expected:
         exit_code: 0
-      idempotent: true
-
   full_cleanup:
     - id: C20
-      intent: Full cleanup (destructive rebuild)
-      tool: bash
-      command: sudo bash scripts/cleanup_full.sh
+      intent: Full cleanup
+      tool: shell
+      command: bash scripts/cleanup_full.sh
       expected:
         exit_code: 0
-      idempotent: true
 
 install:
   native:
     - id: S10
-      intent: Download official installer script
-      tool: bash
-      command: curl -fsSL https://ollama.com/install.sh -o /tmp/ollama-install.sh
+      intent: Download and install Ollama
+      tool: shell
+      command: curl -fsSL https://ollama.com/install.sh | bash
       expected:
-        file_exists: /tmp/ollama-install.sh
+        bin: /usr/local/bin/ollama
       idempotent: true
-
     - id: S20
-      intent: Run installer
-      tool: bash
-      command: sudo bash /tmp/ollama-install.sh
+      intent: Install systemd service unit
+      tool: template
+      edit:
+        template: templates/ollama.service.tmpl
+        destination: /etc/systemd/system/ollama.service
       expected:
-        exit_code: 0
-      on_fail:
-        next:
-          - T10
+        unit: /etc/systemd/system/ollama.service
       idempotent: true
-
     - id: S30
-      intent: Start ollama service
-      tool: service_manager
-      command:
-        action: start
-        service: ollama
+      intent: Enable and start service
+      tool: shell
+      command: systemctl daemon-reload && systemctl enable --now ollama
       expected:
-        status: running
+        service: active
       idempotent: true
-
-  container:
-    - id: S100
-      intent: Container mode is not implemented in v0.1.2 reference module
-      tool: bash
-      command: |
-        echo "Container mode not implemented for this reference module yet."
-        exit 2
-      expected:
-        exit_code: 2
-      idempotent: true
-
-# Optional troubleshooting actions referenced by on_fail (kept machine-readable)
-troubleshooting:
-  - id: T10
-    intent: Collect service logs for diagnosis
-    tool: bash
-    command: |
-      set -e
-      systemctl status ollama || true
-      journalctl -u ollama -n 120 --no-pager || true
-    expected:
-      exit_code: 0
-    idempotent: true
 
 configuration:
   required: false
   defaults:
-    bind: 127.0.0.1
-    port: 11434
-    data_dir: ~/.ollama
-  templates: []
+    bind: 127.0.0.1:11434
+  templates:
+    - templates/ollama.service.tmpl
 
 verification:
   script: scripts/verify.sh
@@ -199,10 +134,3 @@ security:
     auth: none
   privileges:
     requires_sudo: true
-  notes:
-    - Ollama listens on localhost by default.
-    - Do not expose port 11434 publicly without access controls.
-
-references:
-  - https://ollama.com
-  - https://github.com/ollama/ollama

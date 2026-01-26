@@ -44,6 +44,9 @@ func LoadRegistryFromDir(root string) (*Registry, error) {
 		if ext != ".yaml" && ext != ".yml" {
 			return nil
 		}
+		if filepath.Base(path) != "manifest.yaml" {
+			return nil
+		}
 		record, err := LoadModuleRecord(path)
 		if err != nil {
 			return i18n.Errorf("load module manifest %s: %w", path, err)
