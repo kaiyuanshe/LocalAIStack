@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/module"
 )
 
 func init() {
@@ -42,9 +43,24 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		},
 	}
 
+	checkCmd := &cobra.Command{
+		Use:   "check [module-name]",
+		Short: "Check module installation status",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := module.Check(args[0]); err != nil {
+				cmd.Printf("%s\n", i18n.T("Module check failed: %s", err))
+				return err
+			}
+			cmd.Printf("%s\n", i18n.T("Module %s is installed and healthy.", args[0]))
+			return nil
+		},
+	}
+
 	moduleCmd.AddCommand(installCmd)
 	moduleCmd.AddCommand(uninstallCmd)
 	moduleCmd.AddCommand(listCmd)
+	moduleCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(moduleCmd)
 }
 
