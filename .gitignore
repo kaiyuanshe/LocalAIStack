@@ -39,11 +39,12 @@ bin/
 
 # Local configuration files (but keep examples)
 *.yaml
+locales/*.yaml
 !configs/*.yaml
 !configs/examples/*.yaml
-locales/*.yaml
 !locales/zh-cn.yaml
 !docs/modules.schema.yaml
+!modules/ollama/*.yaml
 
 # Log files
 *.log

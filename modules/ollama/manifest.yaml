@@ -1,0 +1,50 @@
+id: ollama
+name: Ollama
+category: runtime
+description: Local LLM inference runtime with built-in model management
+homepage: https://ollama.com
+license: MIT
+
+platforms:
+  ubuntu:
+    - "22.04"
+    - "24.04"
+
+install_modes:
+  - native
+  - container
+
+hardware:
+  cpu:
+    cores_min: 2
+  memory:
+    ram_min_gb: 4
+  gpu:
+    optional: true
+    vram_min_gb: 6
+
+capabilities:
+  provides:
+    - local_llm_inference
+    - model_store_local
+    - openai_compatible_api_optional
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - systemd
+  modules: []
+  capabilities: []
+  optional:
+    gpu:
+      - cuda-runtime
+
+network:
+  bind: 127.0.0.1
+  port: 11434
+
+uninstall_modes:
+  - rollback
+  - uninstall
+  - purge
