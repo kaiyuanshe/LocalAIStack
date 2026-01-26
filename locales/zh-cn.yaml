@@ -385,6 +385,9 @@ Translation model: 翻译模型
 Translation provider: 翻译服务提供商
 Translation timeout in seconds: 翻译超时时间（以秒为单位）
 Uninstall a module: 卸载一个模块
+'Uninstalling module: %s': 正在卸载模块：%s
+'Module %s uninstalled successfully.': 模块 %s 已成功卸载。
+'Module uninstall failed: %s': 模块卸载失败：%s
 'available: %s': 可用：%s
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认路径为 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）

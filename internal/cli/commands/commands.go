@@ -30,8 +30,14 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Use:   "uninstall [module-name]",
 		Short: "Uninstall a module",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.Printf("%s\n", i18n.T("Uninstalling module: %s", args[0]))
+			if err := module.Uninstall(args[0]); err != nil {
+				cmd.Printf("%s\n", i18n.T("Module uninstall failed: %s", err))
+				return err
+			}
+			cmd.Printf("%s\n", i18n.T("Module %s uninstalled successfully.", args[0]))
+			return nil
 		},
 	}
 
