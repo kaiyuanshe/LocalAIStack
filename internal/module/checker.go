@@ -21,15 +21,21 @@ func Check(name string) error {
 }
 
 func resolveModuleDir(name string) (string, error) {
-	moduleDir := filepath.Join("modules", name)
-	manifestPath := filepath.Join(moduleDir, "manifest.yaml")
-	if _, err := os.Stat(manifestPath); err != nil {
-		if os.IsNotExist(err) {
-			return "", i18n.Errorf("module %q not found", name)
-		}
-		return "", i18n.Errorf("failed to read module config for %q: %w", name, err)
+	roots := []string{"."}
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		roots = append(roots, exeDir, filepath.Dir(exeDir))
 	}
-	return moduleDir, nil
+	for _, root := range roots {
+		moduleDir := filepath.Join(root, "modules", name)
+		manifestPath := filepath.Join(moduleDir, "manifest.yaml")
+		if _, err := os.Stat(manifestPath); err == nil {
+			return moduleDir, nil
+		} else if !os.IsNotExist(err) {
+			return "", i18n.Errorf("failed to read module config for %q: %w", name, err)
+		}
+	}
+	return "", i18n.Errorf("module %q not found", name)
 }
 
 func runModuleCheck(name, moduleDir string) error {
