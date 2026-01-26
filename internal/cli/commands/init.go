@@ -41,7 +41,10 @@ func newInitCommand() *cobra.Command {
 			}
 
 			reader := bufio.NewReader(cmd.InOrStdin())
-			existingAPIKey := readNestedString(settings, "i18n", "translation", "api_key")
+			existingAPIKey := readNestedString(settings, "llm", "api_key")
+			if existingAPIKey == "" {
+				existingAPIKey = readNestedString(settings, "i18n", "translation", "api_key")
+			}
 			existingLanguage := readNestedString(settings, "i18n", "language")
 
 			if apiKey == "" {
@@ -62,11 +65,12 @@ func newInitCommand() *cobra.Command {
 				return i18n.Errorf("language cannot be empty")
 			}
 
-			setNestedValue(settings, apiKey, "i18n", "translation", "api_key")
+			setNestedValue(settings, apiKey, "llm", "api_key")
+			setNestedValue(settings, provider, "llm", "provider")
+			setNestedValue(settings, baseURL, "llm", "base_url")
 			setNestedValue(settings, language, "i18n", "language")
 			setNestedValue(settings, provider, "i18n", "translation", "provider")
 			setNestedValue(settings, model, "i18n", "translation", "model")
-			setNestedValue(settings, baseURL, "i18n", "translation", "base_url")
 			setNestedValue(settings, timeoutSeconds, "i18n", "translation", "timeout_seconds")
 
 			if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
