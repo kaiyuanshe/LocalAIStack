@@ -86,7 +86,7 @@ func (s *Service) lookupTranslation(key string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cache := s.ensureLocaleLoadedLocked()
-	return strings.TrimSpace(cache[key])
+	return strings.Trim(cache[key], " \t\r")
 }
 
 func (s *Service) translateAndStore(key string) string {
@@ -97,7 +97,7 @@ func (s *Service) translateAndStore(key string) string {
 	if err != nil {
 		return ""
 	}
-	translated = strings.TrimSpace(translated)
+	translated = strings.Trim(translated, " \t\r")
 	if translated == "" {
 		return ""
 	}
