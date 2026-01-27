@@ -16,7 +16,12 @@ arch="$(uname -m)"
 case "$arch" in
   x86_64|amd64)
     arch="x86_64"
-    patterns=("bin-ubuntu-x64.tar.gz" "bin-ubuntu-vulkan-x64.tar.gz" "bin-openEuler-x86.tar.gz")
+    patterns=(
+      "bin-ubuntu-x64.tar.gz"
+      "bin-ubuntu-vulkan-x64.tar.gz"
+      "bin-openEuler-x86.tar.gz"
+      "bin-310p-openEuler-x86.tar.gz"
+    )
     ;;
   aarch64|arm64)
     arch="aarch64"
@@ -64,6 +69,21 @@ for pattern in patterns:
 print('')
 PY
 )
+
+if [[ -z "$asset_url" ]]; then
+  release_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/ggerganov/llama.cpp/releases/latest")
+  release_tag="${release_url##*/}"
+  if [[ -n "$release_tag" && "$release_tag" != "latest" ]]; then
+    for pattern in "${patterns[@]}"; do
+      candidate="https://github.com/ggerganov/llama.cpp/releases/download/${release_tag}/llama-${release_tag}-${pattern}"
+      if curl -fsI "$candidate" >/dev/null 2>&1; then
+        asset_url="$candidate"
+        break
+      fi
+    done
+  fi
+fi
 
 if [[ -z "$asset_url" ]]; then
   echo "No suitable prebuilt asset found for $arch." >&2
