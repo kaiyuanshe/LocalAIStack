@@ -1,0 +1,36 @@
+name: llama.cpp
+category: runtime
+version: 0.1.0
+description: Local LLM inference runtime powered by llama.cpp
+license: MIT
+
+hardware:
+  cpu:
+    cores_min: 2
+  memory:
+    ram_min: 4GB
+  gpu:
+    vram_min: 6GB
+    multi_gpu: false
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - tar
+    - git
+    - cmake
+    - make
+    - gcc
+    - g++
+    - python3
+
+runtime:
+  modes:
+    - binary
+    - source
+  preferred: binary
+
+interfaces:
+  provides:
+    - local_llm_inference

@@ -1,0 +1,144 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: llama.cpp
+category: runtime
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - binary
+  - source
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - curl
+  - tar
+  - git
+  - cmake
+  - make
+
+description:
+  purpose: Install and manage the llama.cpp runtime binaries
+  scope:
+    - install
+    - configure
+    - verify
+    - rollback
+    - uninstall
+    - purge
+  non_goals:
+    - manage model files
+    - expose a systemd service
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - tar
+    - git
+    - cmake
+    - make
+    - gcc
+    - g++
+    - python3
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+
+decision_matrix:
+  default: binary
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing llama.cpp artifacts
+      tool: shell
+      command: test -f /usr/local/bin/llama-cli || test -d /usr/local/llama.cpp
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Soft cleanup
+      tool: shell
+      command: bash scripts/cleanup_soft.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Full cleanup
+      tool: shell
+      command: bash scripts/cleanup_full.sh
+      expected:
+        exit_code: 0
+
+install:
+  binary:
+    - id: S10
+      intent: Install system dependencies
+      tool: shell
+      command: bash scripts/install_deps.sh binary
+      expected:
+        exit_code: 0
+      idempotent: true
+    - id: S20
+      intent: Download and install prebuilt llama.cpp binaries
+      tool: shell
+      command: bash scripts/install_binary.sh
+      expected:
+        bin: /usr/local/bin/llama-cli
+      idempotent: true
+  source:
+    - id: S10
+      intent: Install system dependencies
+      tool: shell
+      command: bash scripts/install_deps.sh source
+      expected:
+        exit_code: 0
+      idempotent: true
+    - id: S20
+      intent: Build and install llama.cpp from source
+      tool: shell
+      command: bash scripts/install_source.sh
+      expected:
+        bin: /usr/local/bin/llama-cli
+      idempotent: true
+
+configuration:
+  required: false
+  defaults:
+    bind: 127.0.0.1:8080
+  templates: []
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/rollback.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: localhost
+    auth: none
+  privileges:
+    requires_sudo: true
