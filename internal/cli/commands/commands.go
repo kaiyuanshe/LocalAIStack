@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"sort"
 	"text/tabwriter"
 
@@ -82,7 +83,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 				if err := module.Check(name); err == nil {
 					status = i18n.T("Installed")
 				}
-				_, _ = writer.Write([]byte(i18n.T("- %s\t%s\n", name, status)))
+				_, _ = fmt.Fprintf(writer, "%s\n", i18n.T("- %s\t%s", name, status))
 			}
 			_ = writer.Flush()
 		},
