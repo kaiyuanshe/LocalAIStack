@@ -9,6 +9,9 @@ else
   SUDO=""
 fi
 
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
 arch="$(uname -m)"
 case "$arch" in
   x86_64|amd64)
@@ -25,11 +28,18 @@ case "$arch" in
     ;;
 esac
 
-asset_json=$(python3 - <<'PY'
-import json,urllib.request
-url='https://api.github.com/repos/ggerganov/llama.cpp/releases/latest'
-with urllib.request.urlopen(url, timeout=30) as r:
-    data=json.load(r)
+release_json="$tmp_dir/release.json"
+curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors \
+  "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" \
+  -o "$release_json"
+
+asset_json=$(RELEASE_JSON="$release_json" python3 - <<'PY'
+import json
+import os
+
+release_json = os.environ["RELEASE_JSON"]
+with open(release_json, "r", encoding="utf-8") as f:
+    data = json.load(f)
 print(json.dumps(data.get('assets', [])))
 PY
 )
@@ -60,11 +70,8 @@ if [[ -z "$asset_url" ]]; then
   exit 1
 fi
 
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
-
 archive="$tmp_dir/llama.cpp.tar.gz"
-curl -fsSL "$asset_url" -o "$archive"
+curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors "$asset_url" -o "$archive"
 
 $SUDO rm -rf "$install_dir"
 $SUDO mkdir -p "$install_dir"
