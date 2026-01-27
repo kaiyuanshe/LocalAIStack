@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"sort"
+
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
@@ -51,7 +53,57 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Use:   "list",
 		Short: "List all available modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println(i18n.T("Available modules:"))
+			modulesRoot, err := module.FindModulesRoot()
+			if err != nil {
+				cmd.Printf("%s\n", i18n.T("Failed to locate modules directory: %v", err))
+				return
+			}
+			registry, err := module.LoadRegistryFromDir(modulesRoot)
+			if err != nil {
+				cmd.Printf("%s\n", i18n.T("Failed to load modules from %s: %v", modulesRoot, err))
+				return
+			}
+
+			all := registry.All()
+			names := make([]string, 0, len(all))
+			for name := range all {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+
+			installed := make([]string, 0, len(names))
+			notInstalled := make([]string, 0, len(names))
+			for _, name := range names {
+				if err := module.Check(name); err != nil {
+					notInstalled = append(notInstalled, name)
+					continue
+				}
+				installed = append(installed, name)
+			}
+
+			cmd.Println(i18n.T("Manageable modules:"))
+			if len(names) == 0 {
+				cmd.Println(i18n.T("- none"))
+			}
+			for _, name := range names {
+				cmd.Printf("%s\n", i18n.T("- %s", name))
+			}
+
+			cmd.Println(i18n.T("Installed modules:"))
+			if len(installed) == 0 {
+				cmd.Println(i18n.T("- none"))
+			}
+			for _, name := range installed {
+				cmd.Printf("%s\n", i18n.T("- %s", name))
+			}
+
+			cmd.Println(i18n.T("Not installed modules:"))
+			if len(notInstalled) == 0 {
+				cmd.Println(i18n.T("- none"))
+			}
+			for _, name := range notInstalled {
+				cmd.Printf("%s\n", i18n.T("- %s", name))
+			}
 		},
 	}
 

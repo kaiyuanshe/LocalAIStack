@@ -62,6 +62,32 @@ func LoadRegistryFromDir(root string) (*Registry, error) {
 	return registry, nil
 }
 
+func FindModulesRoot() (string, error) {
+	roots := []string{"."}
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		roots = append(roots, exeDir, filepath.Dir(exeDir))
+	}
+	for _, root := range roots {
+		moduleDir := filepath.Join(root, "modules")
+		info, err := os.Stat(moduleDir)
+		if err == nil {
+			if info.IsDir() {
+				absDir, err := filepath.Abs(moduleDir)
+				if err != nil {
+					return "", i18n.Errorf("failed to resolve modules directory: %w", err)
+				}
+				return absDir, nil
+			}
+			continue
+		}
+		if !os.IsNotExist(err) {
+			return "", i18n.Errorf("failed to access modules directory: %w", err)
+		}
+	}
+	return "", i18n.Errorf("modules directory not found")
+}
+
 func LoadModuleRecord(path string) (ModuleRecord, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
