@@ -292,7 +292,7 @@ help for check: 关于检查的帮助信息
 help for help: “help for help” 的意思是“寻求帮助以获得帮助”。
 help for install: 安装帮助
 help for uninstall: 关于卸载的帮助：
-'module %q check failed: %w': 模块 %q 的检查失败：%w
+'module %q check failed: %w': 模块 %q 的检查失败：%v
 'module %q uninstall failed: %s': 模块 %q 的卸载失败：%s
 verbose output: 详细输出（verbose output）
 详细输出（verbose output）: 详细输出（verbose output）：
