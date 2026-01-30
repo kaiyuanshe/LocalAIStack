@@ -62,15 +62,25 @@ func T(key string, args ...any) string {
 }
 
 func Errorf(key string, args ...any) error {
-	return fmt.Errorf(T(key, args...))
+	defaultMu.RLock()
+	service := defaultService
+	defaultMu.RUnlock()
+	if service == nil {
+		return fmt.Errorf(key, args...)
+	}
+	return fmt.Errorf(service.formatKey(key), args...)
 }
 
 func (s *Service) T(key string, args ...any) string {
+	return fmt.Sprintf(s.formatKey(key), args...)
+}
+
+func (s *Service) formatKey(key string) string {
 	if s == nil {
-		return fmt.Sprintf(key, args...)
+		return key
 	}
 	if s.language == "" || s.language == "en" {
-		return fmt.Sprintf(key, args...)
+		return key
 	}
 	value := s.lookupTranslation(key)
 	if value == "" {
@@ -79,7 +89,7 @@ func (s *Service) T(key string, args ...any) string {
 	if value == "" {
 		value = key
 	}
-	return fmt.Sprintf(value, args...)
+	return value
 }
 
 func (s *Service) lookupTranslation(key string) string {
