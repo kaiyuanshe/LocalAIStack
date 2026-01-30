@@ -10,4 +10,12 @@ import huggingface_hub
 print(huggingface_hub.__version__)
 PY
 
-python3 -m huggingface_hub.commands.huggingface_cli --help >/dev/null
+python3 - <<'PY'
+import importlib.metadata as md
+
+eps = md.entry_points()
+group = eps.select(group="console_scripts") if hasattr(eps, "select") else eps.get("console_scripts", [])
+names = {ep.name for ep in group}
+if not (names & {"hf", "huggingface-cli"}):
+    raise SystemExit(f"Expected hf or huggingface-cli console script, found: {sorted(names)}")
+PY

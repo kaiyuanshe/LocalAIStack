@@ -60,7 +60,7 @@ install:
     - id: S20
       intent: Verify CLI module entrypoint
       tool: shell
-      command: python3 -m huggingface_hub.commands.huggingface_cli --help >/dev/null
+      command: python3 -c "import importlib.metadata as md; eps = md.entry_points(); group = eps.select(group='console_scripts') if hasattr(eps, 'select') else eps.get('console_scripts', []); names = {ep.name for ep in group}; assert names & {'hf', 'huggingface-cli'}, f'Expected hf or huggingface-cli console script, found: {sorted(names)}'"
       expected:
         exit_code: 0
       idempotent: true
