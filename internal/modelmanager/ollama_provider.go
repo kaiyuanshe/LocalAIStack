@@ -85,7 +85,7 @@ func (p *OllamaProvider) Search(ctx context.Context, query string, limit int) ([
 func (p *OllamaProvider) enrichModelsWithSizes(ctx context.Context, models []ModelInfo, query string) {
 	tagModels, err := p.searchFromTags(ctx, query, 0)
 	if err != nil || len(tagModels) == 0 {
-		return
+		tagModels = nil
 	}
 
 	sizesByName := map[string]string{}
@@ -101,8 +101,70 @@ func (p *OllamaProvider) enrichModelsWithSizes(ctx context.Context, models []Mod
 		}
 		if sizes, ok := sizesByName[models[i].Name]; ok && sizes != "" {
 			models[i].Metadata["sizes"] = sizes
+			continue
 		}
+
+		librarySizes, err := p.fetchLibrarySizes(ctx, models[i].Name)
+		if err != nil || len(librarySizes) == 0 {
+			continue
+		}
+		models[i].Metadata["sizes"] = strings.Join(librarySizes, ", ")
 	}
+}
+
+func (p *OllamaProvider) fetchLibrarySizes(ctx context.Context, modelName string) ([]string, error) {
+	url := fmt.Sprintf("%s/%s/tags", ollamaLibraryURL, modelName)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "text/html")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseLibraryTagSizes(string(body)), nil
+}
+
+func parseLibraryTagSizes(htmlContent string) []string {
+	sizePattern := regexp.MustCompile(`x-test-size[^>]*>([^<]+)</span>`)
+	matches := sizePattern.FindAllStringSubmatch(htmlContent, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	unique := map[string]struct{}{}
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		size := strings.TrimSpace(html.UnescapeString(match[1]))
+		if size == "" {
+			continue
+		}
+		unique[strings.ToLower(size)] = struct{}{}
+	}
+
+	sizes := make([]string, 0, len(unique))
+	for size := range unique {
+		sizes = append(sizes, size)
+	}
+	sort.Strings(sizes)
+	return sizes
 }
 
 func (p *OllamaProvider) searchFromLibrary(ctx context.Context, query string) ([]ModelInfo, error) {
