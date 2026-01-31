@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
@@ -111,7 +112,7 @@ func (p *OllamaProvider) parseLibraryHTML(htmlContent string, query string) ([]M
 	var models []ModelInfo
 	queryLower := strings.ToLower(query)
 
-	modelPattern := regexp.MustCompile(`<h2[^>]*>([^<]+)</h2>\s*<p>([^<]+)</p>`)
+	modelPattern := regexp.MustCompile(`(?s)<div[^>]*x-test-model-title[^>]*title="([^"]+)"[^>]*>.*?<p[^>]*>([^<]+)</p>`)
 	matches := modelPattern.FindAllStringSubmatch(htmlContent, -1)
 
 	for _, match := range matches {
@@ -119,10 +120,10 @@ func (p *OllamaProvider) parseLibraryHTML(htmlContent string, query string) ([]M
 			continue
 		}
 
-		name := strings.TrimSpace(match[1])
-		description := strings.TrimSpace(match[2])
+		name := strings.TrimSpace(html.UnescapeString(match[1]))
+		description := strings.TrimSpace(html.UnescapeString(match[2]))
 
-		if query != "" && !strings.Contains(strings.ToLower(name), queryLower) {
+		if query != "" && !strings.Contains(strings.ToLower(name), queryLower) && !strings.Contains(strings.ToLower(description), queryLower) {
 			continue
 		}
 
