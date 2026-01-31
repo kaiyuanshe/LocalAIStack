@@ -292,6 +292,7 @@ func (p *OllamaProvider) searchFromTags(ctx context.Context, query string, limit
 		}
 
 		baseName := om.Name
+		hasTag := strings.Contains(om.Name, ":")
 		if parts := strings.SplitN(om.Name, ":", 2); len(parts) > 0 {
 			baseName = parts[0]
 		}
@@ -342,6 +343,11 @@ func (p *OllamaProvider) searchFromTags(ctx context.Context, query string, limit
 				}
 				tagSets[baseName][tagName] = struct{}{}
 			}
+		} else if !hasTag {
+			if tagSets[baseName] == nil {
+				tagSets[baseName] = map[string]struct{}{}
+			}
+			tagSets[baseName]["latest"] = struct{}{}
 		}
 	}
 
@@ -366,14 +372,8 @@ func (p *OllamaProvider) searchFromTags(ctx context.Context, query string, limit
 		}
 		family := models[idx].Metadata["family"]
 		switch {
-		case family != "" && len(sizes) > 0 && len(tags) > 0:
-			models[idx].Description = fmt.Sprintf("Sizes: %s, Tags: %s, Family: %s", strings.Join(sizes, ", "), strings.Join(tags, ", "), family)
-		case len(sizes) > 0 && len(tags) > 0:
-			models[idx].Description = fmt.Sprintf("Sizes: %s, Tags: %s", strings.Join(sizes, ", "), strings.Join(tags, ", "))
 		case len(tags) > 0 && family != "":
 			models[idx].Description = fmt.Sprintf("Tags: %s, Family: %s", strings.Join(tags, ", "), family)
-		case len(sizes) > 0:
-			models[idx].Description = fmt.Sprintf("Sizes: %s", strings.Join(sizes, ", "))
 		case len(tags) > 0:
 			models[idx].Description = fmt.Sprintf("Tags: %s", strings.Join(tags, ", "))
 		case family != "":
