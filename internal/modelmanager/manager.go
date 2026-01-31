@@ -50,15 +50,21 @@ func (m *Manager) ListDownloadedModels() ([]DownloadedModel, error) {
 	return models, nil
 }
 
-func (m *Manager) RemoveModel(modelID string) error {
-	modelPath := filepath.Join(m.modelDir, modelID)
-
-	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		return fmt.Errorf("model %s not found", modelID)
+func (m *Manager) RemoveModel(source ModelSource, modelID string) error {
+	provider, err := m.GetProvider(source)
+	if err != nil {
+		return err
 	}
 
-	if err := os.RemoveAll(modelPath); err != nil {
-		return fmt.Errorf("failed to remove model %s: %w", modelID, err)
+	if err := provider.Delete(context.Background(), modelID); err != nil {
+		return fmt.Errorf("failed to delete model from %s: %w", source, err)
+	}
+
+	modelPath := filepath.Join(m.modelDir, modelID)
+	if _, err := os.Stat(modelPath); !os.IsNotExist(err) {
+		if err := os.RemoveAll(modelPath); err != nil {
+			return fmt.Errorf("failed to remove local metadata for %s: %w", modelID, err)
+		}
 	}
 
 	return nil
@@ -155,18 +161,23 @@ func FormatBytes(bytes int64) string {
 }
 
 func ParseModelID(input string) (ModelSource, string, error) {
-	parts := strings.SplitN(input, ":", 2)
-	if len(parts) == 2 {
-		switch strings.ToLower(parts[0]) {
-		case "ollama":
-			return SourceOllama, parts[1], nil
-		case "huggingface", "hf":
-			return SourceHuggingFace, parts[1], nil
-		case "modelscope":
-			return SourceModelScope, parts[1], nil
-		default:
-			return "", "", fmt.Errorf("unknown source: %s", parts[0])
-		}
+	inputLower := strings.ToLower(input)
+
+	if strings.HasPrefix(inputLower, "ollama:") {
+		return SourceOllama, input[7:], nil
+	}
+	if strings.HasPrefix(inputLower, "huggingface:") {
+		return SourceHuggingFace, input[12:], nil
+	}
+	if strings.HasPrefix(inputLower, "hf:") {
+		return SourceHuggingFace, input[3:], nil
+	}
+	if strings.HasPrefix(inputLower, "modelscope:") {
+		return SourceModelScope, input[11:], nil
+	}
+
+	if strings.Contains(input, ":") && !strings.Contains(input, "/") {
+		return SourceOllama, input, nil
 	}
 
 	return SourceHuggingFace, input, nil

@@ -244,3 +244,14 @@ func (p *OllamaProvider) GetModelInfo(ctx context.Context, modelID string) (*Mod
 
 	return nil, fmt.Errorf("model %s not found", modelID)
 }
+
+func (p *OllamaProvider) Delete(ctx context.Context, modelID string) error {
+	cmd := exec.CommandContext(ctx, "ollama", "rm", modelID)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete Ollama model %s: %w (output: %s)", modelID, err, string(output))
+	}
+
+	return nil
+}

@@ -45,6 +45,7 @@ type Provider interface {
 	Name() ModelSource
 	Search(ctx context.Context, query string, limit int) ([]ModelInfo, error)
 	Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64)) error
+	Delete(ctx context.Context, modelID string) error
 	GetModelInfo(ctx context.Context, modelID string) (*ModelInfo, error)
 }
 

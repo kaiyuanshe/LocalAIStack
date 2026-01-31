@@ -327,3 +327,7 @@ func (p *HuggingFaceProvider) GetModelInfo(ctx context.Context, modelID string) 
 		},
 	}, nil
 }
+
+func (p *HuggingFaceProvider) Delete(ctx context.Context, modelID string) error {
+	return fmt.Errorf("HuggingFace models cannot be deleted via API. Please delete manually from %s", p.token)
+}

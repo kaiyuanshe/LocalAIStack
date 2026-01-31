@@ -334,3 +334,7 @@ func (p *ModelScopeProvider) GetModelInfo(ctx context.Context, modelID string) (
 		},
 	}, nil
 }
+
+func (p *ModelScopeProvider) Delete(ctx context.Context, modelID string) error {
+	return fmt.Errorf("ModelScope models cannot be deleted via API")
+}

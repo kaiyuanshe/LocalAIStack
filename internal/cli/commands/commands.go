@@ -302,6 +302,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			modelID := args[0]
 			force, _ := cmd.Flags().GetBool("force")
+			source, _ := cmd.Flags().GetString("source")
 
 			if !force {
 				cmd.Printf("Are you sure you want to remove model %s? Use --force to confirm.\n", modelID)
@@ -310,7 +311,27 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 
 			mgr := createModelManager()
 
-			if err := mgr.RemoveModel(modelID); err != nil {
+			var src modelmanager.ModelSource
+			if source != "" {
+				switch strings.ToLower(source) {
+				case "ollama":
+					src = modelmanager.SourceOllama
+				case "huggingface", "hf":
+					src = modelmanager.SourceHuggingFace
+				case "modelscope":
+					src = modelmanager.SourceModelScope
+				default:
+					return fmt.Errorf("unknown source: %s", source)
+				}
+			} else {
+				var err error
+				src, modelID, err = modelmanager.ParseModelID(modelID)
+				if err != nil {
+					return err
+				}
+			}
+
+			if err := mgr.RemoveModel(src, modelID); err != nil {
 				return err
 			}
 
@@ -319,6 +340,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		},
 	}
 	rmCmd.Flags().BoolP("force", "f", false, "Force removal without confirmation")
+	rmCmd.Flags().StringP("source", "s", "", "Source of the model (ollama, huggingface, modelscope)")
 
 	modelCmd.AddCommand(searchCmd)
 	modelCmd.AddCommand(downloadCmd)

@@ -369,6 +369,7 @@ Remove a downloaded model: 删除已下载的模型。
 Search for models: 搜索模型
 Show system information: 显示系统信息
 SiliconFlow API key: SiliconFlow API密钥
+Source of the model (ollama, huggingface, modelscope): 模型的来源（ollama、huggingface、modelscope）
 Source to download from (ollama, huggingface, modelscope): 可以从以下来源下载模型：ollama、huggingface、modelscope。
 Source to search (ollama, huggingface, modelscope, or all): 要搜索的来源（ollama、huggingface、modelscope 或全部）：
 Start a service: 启动一个服务
