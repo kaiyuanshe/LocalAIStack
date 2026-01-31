@@ -368,14 +368,18 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 
 	cmd.Printf("\n=== %s ===\n", strings.ToUpper(string(source)))
 	writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "NAME\tFORMAT\tDESCRIPTION")
+	fmt.Fprintln(writer, "NAME\tFORMAT\tSIZES\tDESCRIPTION")
 
 	for _, model := range models {
 		desc := model.Description
 		if len(desc) > 50 {
 			desc = desc[:47] + "..."
 		}
-		fmt.Fprintf(writer, "%s\t%s\t%s\n", model.ID, model.Format, desc)
+		sizes := ""
+		if model.Metadata != nil {
+			sizes = model.Metadata["sizes"]
+		}
+		fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", model.ID, model.Format, sizes, desc)
 	}
 
 	writer.Flush()

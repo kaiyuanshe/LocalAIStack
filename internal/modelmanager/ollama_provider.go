@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -77,7 +78,31 @@ func (p *OllamaProvider) Search(ctx context.Context, query string, limit int) ([
 		return p.searchFromTags(ctx, query, limit)
 	}
 
+	p.enrichModelsWithSizes(ctx, libraryModels, query)
 	return libraryModels, nil
+}
+
+func (p *OllamaProvider) enrichModelsWithSizes(ctx context.Context, models []ModelInfo, query string) {
+	tagModels, err := p.searchFromTags(ctx, query, 0)
+	if err != nil || len(tagModels) == 0 {
+		return
+	}
+
+	sizesByName := map[string]string{}
+	for _, model := range tagModels {
+		if sizes, ok := model.Metadata["sizes"]; ok {
+			sizesByName[model.Name] = sizes
+		}
+	}
+
+	for i := range models {
+		if models[i].Metadata == nil {
+			models[i].Metadata = map[string]string{}
+		}
+		if sizes, ok := sizesByName[models[i].Name]; ok && sizes != "" {
+			models[i].Metadata["sizes"] = sizes
+		}
+	}
 }
 
 func (p *OllamaProvider) searchFromLibrary(ctx context.Context, query string) ([]ModelInfo, error) {
@@ -174,32 +199,69 @@ func (p *OllamaProvider) searchFromTags(ctx context.Context, query string, limit
 	var models []ModelInfo
 	queryLower := strings.ToLower(query)
 	count := 0
+	seen := map[string]int{}
+	sizeSets := map[string]map[string]struct{}{}
 
 	for _, om := range tagsResp.Models {
-		if limit > 0 && count >= limit {
-			break
-		}
-
 		if query != "" && !strings.Contains(strings.ToLower(om.Name), queryLower) {
 			continue
 		}
 
-		models = append(models, ModelInfo{
-			ID:          om.Name,
-			Name:        om.Name,
-			Description: fmt.Sprintf("Size: %s, Family: %s", FormatBytes(om.Size), om.Details.Family),
-			Source:      SourceOllama,
-			Format:      FormatOllama,
-			Size:        om.Size,
-			Tags:        om.Details.Families,
-			Metadata: map[string]string{
-				"digest":             om.Digest,
-				"modified_at":        om.ModifiedAt,
-				"parameter_size":     om.Details.ParameterSize,
-				"quantization_level": om.Details.QuantizationLevel,
-			},
-		})
-		count++
+		baseName := om.Name
+		if parts := strings.SplitN(om.Name, ":", 2); len(parts) > 0 {
+			baseName = parts[0]
+		}
+
+		if _, ok := seen[baseName]; !ok {
+			if limit > 0 && count >= limit {
+				continue
+			}
+			seen[baseName] = len(models)
+			models = append(models, ModelInfo{
+				ID:          baseName,
+				Name:        baseName,
+				Description: "",
+				Source:      SourceOllama,
+				Format:      FormatOllama,
+				Tags:        om.Details.Families,
+				Metadata: map[string]string{
+					"family": om.Details.Family,
+				},
+			})
+			count++
+		}
+
+		size := strings.TrimSpace(om.Details.ParameterSize)
+		if size == "" {
+			size = FormatBytes(om.Size)
+		}
+		if size != "" {
+			if sizeSets[baseName] == nil {
+				sizeSets[baseName] = map[string]struct{}{}
+			}
+			sizeSets[baseName][size] = struct{}{}
+		}
+	}
+
+	for name, idx := range seen {
+		sizes := make([]string, 0, len(sizeSets[name]))
+		for size := range sizeSets[name] {
+			sizes = append(sizes, size)
+		}
+		sort.Strings(sizes)
+		if models[idx].Metadata == nil {
+			models[idx].Metadata = map[string]string{}
+		}
+		models[idx].Metadata["sizes"] = strings.Join(sizes, ", ")
+		family := models[idx].Metadata["family"]
+		switch {
+		case family != "" && len(sizes) > 0:
+			models[idx].Description = fmt.Sprintf("Sizes: %s, Family: %s", strings.Join(sizes, ", "), family)
+		case len(sizes) > 0:
+			models[idx].Description = fmt.Sprintf("Sizes: %s", strings.Join(sizes, ", "))
+		case family != "":
+			models[idx].Description = fmt.Sprintf("Family: %s", family)
+		}
 	}
 
 	return models, nil
