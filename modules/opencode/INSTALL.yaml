@@ -1,0 +1,99 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: opencode
+category: tools
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - native
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - curl
+
+description:
+  purpose: Install the OpenCode CLI
+  scope:
+    - install
+    - verify
+    - rollback
+    - uninstall
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+
+decision_matrix:
+  default: native
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing OpenCode binary
+      tool: shell
+      command: command -v opencode
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Remove OpenCode binary
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Remove OpenCode binary and local data
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  native:
+    - id: S10
+      intent: Install OpenCode via official install script
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        bin: /usr/local/bin/opencode
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: n/a
+    auth: n/a
+  privileges:
+    requires_sudo: true

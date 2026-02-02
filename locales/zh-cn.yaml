@@ -5,6 +5,7 @@ Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示
 Detect hardware capabilities: 检测硬件功能
 Download a model: 下载一个模型。
 'Error: %v': 错误：%v
+'Failed to load modules from %s: %v': 无法从 %s 加载模块：%v
 Force removal without confirmation: 强制移除，无需确认
 GPU layers for llama.cpp (-1 = auto): '`lama.cpp` 中的 GPU 层（-1 表示自动选择）'
 Generate the autocompletion script for bash: 生成 Bash 的自动补全脚本：
@@ -417,6 +418,8 @@ help for run: 关于如何运行的帮助
 help for search: 搜索帮助
 help for uninstall: 关于卸载的帮助
 'install step %s failed: %w': 安装步骤 %s 失败：%w
+invalid category %q: 无效的类别：%q
+'load module manifest %s: %w': 加载模块清单文件 %s：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
 'module %q check failed: %v': 模块 %q 的检查失败：%v
 verbose output: 详细输出（verbose output）

@@ -21,6 +21,10 @@ fi
 if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
   $SUDO sed -i 's/list(APPEND CUDA_FLAGS -compress-mode=${GGML_CUDA_COMPRESSION_MODE})/# disabled by LocalAIStack: compress-mode not supported on this toolchain/' \
     "$source_dir/ggml/src/ggml-cuda/CMakeLists.txt"
+  if [[ ! -x /usr/bin/gcc-10 ]]; then
+    echo "gcc-10 is required for CUDA 11.x builds. Install it with: sudo apt install -y gcc-10 g++-10" >&2
+    exit 1
+  fi
 fi
 
 cmake_flags=("-DLLAMA_BUILD_SERVER=ON" "-DCMAKE_BUILD_TYPE=Release")

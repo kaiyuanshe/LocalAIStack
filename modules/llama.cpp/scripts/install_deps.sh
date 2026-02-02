@@ -20,14 +20,21 @@ fi
 
 base_packages=(curl ca-certificates tar python3)
 build_packages=()
+cuda_host_packages=()
 
 if [[ "$mode" == "source" ]]; then
   build_packages=(git cmake make gcc g++)
 fi
 
+if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
+  if [[ "$mode" == "source" ]]; then
+    cuda_host_packages=(gcc-10 g++-10)
+  fi
+fi
+
 install_with_apt() {
   $SUDO apt-get update -y
-  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}"
+  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${cuda_host_packages[@]}"
 }
 
 install_with_dnf() {
