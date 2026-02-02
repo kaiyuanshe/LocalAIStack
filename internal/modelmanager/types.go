@@ -44,7 +44,7 @@ type DownloadedModel struct {
 type Provider interface {
 	Name() ModelSource
 	Search(ctx context.Context, query string, limit int) ([]ModelInfo, error)
-	Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64)) error
+	Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64), opts DownloadOptions) error
 	Delete(ctx context.Context, modelID string) error
 	GetModelInfo(ctx context.Context, modelID string) (*ModelInfo, error)
 }
@@ -52,6 +52,10 @@ type Provider interface {
 type Manager struct {
 	providers map[ModelSource]Provider
 	modelDir  string
+}
+
+type DownloadOptions struct {
+	FileHint string
 }
 
 func NewManager(modelDir string) *Manager {

@@ -3,8 +3,12 @@ package commands
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -14,6 +18,7 @@ import (
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/modelmanager"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/module"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
 )
 
 func init() {
@@ -214,12 +219,23 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	searchCmd.Flags().IntP("limit", "n", 10, "Maximum number of results per source")
 
 	downloadCmd := &cobra.Command{
-		Use:   "download [model-id]",
+		Use:   "download [model-id] [file]",
 		Short: "Download a model",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			modelID := args[0]
+			fileHint := ""
+			if len(args) > 1 {
+				fileHint = args[1]
+			}
 			source, _ := cmd.Flags().GetString("source")
+			flagFile, _ := cmd.Flags().GetString("file")
+			if flagFile != "" {
+				if fileHint != "" {
+					return fmt.Errorf("file hint provided twice; use either positional [file] or --file")
+				}
+				fileHint = flagFile
+			}
 
 			mgr := createModelManager()
 
@@ -253,7 +269,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				}
 			}
 
-			if err := mgr.DownloadModel(src, modelID, progress); err != nil {
+			if err := mgr.DownloadModel(src, modelID, progress, modelmanager.DownloadOptions{FileHint: fileHint}); err != nil {
 				return fmt.Errorf("failed to download model: %w", err)
 			}
 
@@ -262,6 +278,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		},
 	}
 	downloadCmd.Flags().StringP("source", "s", "", "Source to download from (ollama, huggingface, modelscope)")
+	downloadCmd.Flags().StringP("file", "f", "", "Specific model file to download (e.g. Q4_K_M.gguf)")
 
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -294,6 +311,113 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			return nil
 		},
 	}
+
+	runCmd := &cobra.Command{
+		Use:   "run [model-id]",
+		Short: "Run a local model",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			modelID := args[0]
+			source, _ := cmd.Flags().GetString("source")
+			selectedFile, _ := cmd.Flags().GetString("file")
+			threads, _ := cmd.Flags().GetInt("threads")
+			ctxSize, _ := cmd.Flags().GetInt("ctx-size")
+			gpuLayers, _ := cmd.Flags().GetInt("n-gpu-layers")
+			host, _ := cmd.Flags().GetString("host")
+			port, _ := cmd.Flags().GetInt("port")
+
+			mgr := createModelManager()
+
+			var src modelmanager.ModelSource
+			if source != "" {
+				switch strings.ToLower(source) {
+				case "ollama":
+					src = modelmanager.SourceOllama
+				case "huggingface", "hf":
+					src = modelmanager.SourceHuggingFace
+				case "modelscope":
+					src = modelmanager.SourceModelScope
+				default:
+					return fmt.Errorf("unknown source: %s", source)
+				}
+			} else {
+				var err error
+				src, modelID, err = modelmanager.ParseModelID(modelID)
+				if err != nil {
+					return err
+				}
+			}
+
+			modelDir, err := mgr.ResolveLocalModelDir(src, modelID)
+			if err != nil {
+				return fmt.Errorf("local model not found: %w", err)
+			}
+
+			ggufFiles, err := modelmanager.FindGGUFFiles(modelDir)
+			if err != nil {
+				return err
+			}
+			if len(ggufFiles) == 0 {
+				return fmt.Errorf("no GGUF files found for %s", modelID)
+			}
+
+			modelPath, autoSelected, err := resolveGGUFFile(modelDir, ggufFiles, selectedFile)
+			if err != nil {
+				return err
+			}
+			if autoSelected && len(ggufFiles) > 1 {
+				cmd.Printf("Auto-selected GGUF file: %s\n", filepath.Base(modelPath))
+			}
+
+			baseInfoPath := resolveBaseInfoPath()
+			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
+			if err != nil {
+				return fmt.Errorf("failed to read base info at %s (try `./build/las system init`): %w", baseInfoPath, err)
+			}
+
+			defaults := defaultLlamaRunParams(baseInfo)
+			if threads > 0 {
+				defaults.threads = threads
+			}
+			if ctxSize > 0 {
+				defaults.ctxSize = ctxSize
+			}
+			if gpuLayers >= 0 {
+				defaults.gpuLayers = gpuLayers
+			}
+
+			llamaPath, err := exec.LookPath("llama-server")
+			if err != nil {
+				return fmt.Errorf("llama-server not found in PATH (install the llama.cpp module first)")
+			}
+
+			argsList := []string{
+				"--model", modelPath,
+				"--threads", strconv.Itoa(defaults.threads),
+				"--ctx-size", strconv.Itoa(defaults.ctxSize),
+				"--n-gpu-layers", strconv.Itoa(defaults.gpuLayers),
+				"--host", host,
+				"--port", strconv.Itoa(port),
+			}
+
+			cmd.Printf("Starting llama.cpp server for %s\n", filepath.Base(modelPath))
+			runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
+			if err := addLlamaCppLibraryPath(runCmd); err != nil {
+				return err
+			}
+			runCmd.Stdout = cmd.OutOrStdout()
+			runCmd.Stderr = cmd.ErrOrStderr()
+			runCmd.Stdin = cmd.InOrStdin()
+			return runCmd.Run()
+		},
+	}
+	runCmd.Flags().StringP("source", "s", "", "Source of the model (ollama, huggingface, modelscope)")
+	runCmd.Flags().StringP("file", "f", "", "Specific GGUF filename to run")
+	runCmd.Flags().Int("threads", 0, "CPU threads for llama.cpp (0 = auto)")
+	runCmd.Flags().Int("ctx-size", 0, "Context size for llama.cpp (0 = auto)")
+	runCmd.Flags().Int("n-gpu-layers", -1, "GPU layers for llama.cpp (-1 = auto)")
+	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
+	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
 
 	rmCmd := &cobra.Command{
 		Use:   "rm [model-id]",
@@ -345,6 +469,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	modelCmd.AddCommand(searchCmd)
 	modelCmd.AddCommand(downloadCmd)
 	modelCmd.AddCommand(listCmd)
+	modelCmd.AddCommand(runCmd)
 	modelCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(modelCmd)
 }
@@ -401,6 +526,217 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 	}
 
 	writer.Flush()
+}
+
+type llamaRunDefaults struct {
+	threads   int
+	ctxSize   int
+	gpuLayers int
+}
+
+func resolveBaseInfoPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".", "base_info.md")
+	}
+	primary := filepath.Join(home, ".localaistack", "base_info.md")
+	if _, err := os.Stat(primary); err == nil {
+		return primary
+	}
+	alternate := filepath.Join(home, ".localiastack", "base_info.md")
+	if _, err := os.Stat(alternate); err == nil {
+		return alternate
+	}
+	return primary
+}
+
+func defaultLlamaRunParams(info system.BaseInfoSummary) llamaRunDefaults {
+	threads := info.CPUCores
+	if threads <= 0 {
+		threads = runtime.NumCPU()
+		if threads <= 0 {
+			threads = 4
+		}
+	}
+
+	ctxSize := 2048
+	switch {
+	case info.MemoryKB >= 64*1024*1024:
+		ctxSize = 8192
+	case info.MemoryKB >= 32*1024*1024:
+		ctxSize = 4096
+	case info.MemoryKB >= 16*1024*1024:
+		ctxSize = 2048
+	default:
+		ctxSize = 1024
+	}
+
+	gpuLayers := 0
+	vram := parseVRAMFromGPUName(info.GPUName)
+	switch {
+	case vram >= 80:
+		gpuLayers = 80
+	case vram >= 48:
+		gpuLayers = 60
+	case vram >= 24:
+		gpuLayers = 40
+	case vram >= 16:
+		gpuLayers = 20
+	case vram >= 12:
+		gpuLayers = 12
+	case vram > 0:
+		gpuLayers = 8
+	}
+
+	return llamaRunDefaults{
+		threads:   threads,
+		ctxSize:   ctxSize,
+		gpuLayers: gpuLayers,
+	}
+}
+
+func parseVRAMFromGPUName(name string) int {
+	if name == "" {
+		return 0
+	}
+	re := regexp.MustCompile(`(?i)(\d+)\s*gb`)
+	match := re.FindStringSubmatch(name)
+	if len(match) < 2 {
+		return 0
+	}
+	value, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+func resolveGGUFFile(modelDir string, ggufFiles []string, selected string) (string, bool, error) {
+	if selected != "" {
+		modelPath := selected
+		if !filepath.IsAbs(modelPath) {
+			modelPath = filepath.Join(modelDir, selected)
+		}
+		if _, err := os.Stat(modelPath); err != nil {
+			return "", false, fmt.Errorf("GGUF file not found: %s", modelPath)
+		}
+		if !strings.EqualFold(filepath.Ext(modelPath), ".gguf") {
+			return "", false, fmt.Errorf("selected file is not a GGUF model: %s", modelPath)
+		}
+		return modelPath, false, nil
+	}
+
+	chosen, err := selectPreferredGGUFFile(ggufFiles)
+	if err != nil {
+		return "", false, err
+	}
+	return chosen, true, nil
+}
+
+func selectPreferredGGUFFile(files []string) (string, error) {
+	preferred := []string{
+		"q4_k_m",
+		"q4_k_s",
+		"q5_k_m",
+		"q5_k_s",
+		"q5",
+		"q6_k",
+		"q6",
+		"q8_0",
+		"q8",
+	}
+
+	for _, pref := range preferred {
+		candidates := make([]string, 0, len(files))
+		for _, file := range files {
+			if strings.Contains(strings.ToLower(filepath.Base(file)), pref) {
+				candidates = append(candidates, file)
+			}
+		}
+		if len(candidates) > 0 {
+			return pickSmallestFile(candidates)
+		}
+	}
+
+	return pickSmallestFile(files)
+}
+
+func pickSmallestFile(files []string) (string, error) {
+	var (
+		bestFile string
+		bestSize int64
+	)
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		size := info.Size()
+		if bestFile == "" || size < bestSize {
+			bestFile = file
+			bestSize = size
+		}
+	}
+	if bestFile == "" {
+		return "", fmt.Errorf("no GGUF files available to run")
+	}
+	return bestFile, nil
+}
+
+func addLlamaCppLibraryPath(cmd *exec.Cmd) error {
+	libDirs := candidateLibDirs()
+	foundDir := ""
+	for _, dir := range libDirs {
+		if dir == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "libmtmd.so.0")); err == nil {
+			foundDir = dir
+			break
+		}
+		if _, err := os.Stat(filepath.Join(dir, "libmtmd.so")); err == nil {
+			foundDir = dir
+			break
+		}
+	}
+	if foundDir == "" {
+		return nil
+	}
+
+	env := os.Environ()
+	ldKey := "LD_LIBRARY_PATH="
+	updated := false
+	for i, kv := range env {
+		if strings.HasPrefix(kv, ldKey) {
+			current := strings.TrimPrefix(kv, ldKey)
+			if current == "" {
+				env[i] = ldKey + foundDir
+			} else if !strings.Contains(current, foundDir) {
+				env[i] = ldKey + foundDir + ":" + current
+			}
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		env = append(env, ldKey+foundDir)
+	}
+	cmd.Env = env
+	return nil
+}
+
+func candidateLibDirs() []string {
+	home, _ := os.UserHomeDir()
+	return []string{
+		"/usr/local/llama.cpp/build/bin",
+		"/usr/local/llama.cpp/build/lib",
+		"/usr/local/lib",
+		"/usr/lib",
+		"/usr/lib/x86_64-linux-gnu",
+		filepath.Join(home, "llama.cpp", "build", "bin"),
+		filepath.Join(home, "llama.cpp", "build", "lib"),
+		filepath.Join(home, "llama-b7618"),
+	}
 }
 
 func RegisterSystemCommands(rootCmd *cobra.Command) {

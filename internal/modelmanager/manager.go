@@ -95,7 +95,7 @@ func (m *Manager) SearchAll(query string, limit int) (map[ModelSource][]ModelInf
 	return results, nil
 }
 
-func (m *Manager) DownloadModel(source ModelSource, modelID string, progress func(downloaded, total int64)) error {
+func (m *Manager) DownloadModel(source ModelSource, modelID string, progress func(downloaded, total int64), opts DownloadOptions) error {
 	provider, err := m.GetProvider(source)
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (m *Manager) DownloadModel(source ModelSource, modelID string, progress fun
 		return err
 	}
 
-	return provider.Download(context.Background(), modelID, m.modelDir, progress)
+	return provider.Download(context.Background(), modelID, m.modelDir, progress, opts)
 }
 
 func (m *Manager) GetModelInfo(source ModelSource, modelID string) (*ModelInfo, error) {

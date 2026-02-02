@@ -1,9 +1,12 @@
 "- %s\t%s": "- %s\t%s"
+CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数（0 表示自动分配）：'
 Check module installation status: 检查模块的安装状态。
+Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动设置）'
 Detect hardware capabilities: 检测硬件功能
 Download a model: 下载一个模型。
 'Error: %v': 错误：%v
 Force removal without confirmation: 强制移除，无需确认
+GPU layers for llama.cpp (-1 = auto): '`lama.cpp` 中的 GPU 层（-1 表示自动选择）'
 Generate the autocompletion script for bash: 生成 Bash 的自动补全脚本：
 Generate the autocompletion script for fish: |-
     由于“fish”是一个非常通用的术语，它可以指代很多不同的东西（比如一种编程语言、一种鱼类、一种工具等），因此很难为其生成一个具体的“自动完成脚本”。如果您能提供更多关于您想要生成的自动完成脚本的具体信息（比如它应该用于哪种编程语言、它应该支持哪些功能等），我会更能够帮助您。
@@ -344,6 +347,7 @@ Help about any command: 关于任何命令的帮助信息
     Help provides help for any command in the application.
     Simply type localaistack help [path to command] for full details.
 : "“Help”功能可以为应用程序中的任何命令提供帮助。  \n只需输入 `localaistack help [命令路径]` 即可获取详细信息。"
+Host to bind llama.cpp server: 用于绑定 llama.cpp 服务器的主机
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
 Install a module: 安装一个模块。
 Installed: 已安装
@@ -364,14 +368,18 @@ Module %s installed successfully.: 模块 %s 安装成功。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module install failed: %s': 模块安装失败：%s
 Not installed: 未安装
+Port to bind llama.cpp server: 用于绑定 llama.cpp 服务器的端口
 Preferred interaction language: 首选的交互语言
 Remove a downloaded model: 删除已下载的模型。
+Run a local model: 运行一个本地模型。
 Search for models: 搜索模型
 Show system information: 显示系统信息
 SiliconFlow API key: SiliconFlow API密钥
 Source of the model (ollama, huggingface, modelscope): 模型的来源（ollama、huggingface、modelscope）
 Source to download from (ollama, huggingface, modelscope): 可以从以下来源下载模型：ollama、huggingface、modelscope。
 Source to search (ollama, huggingface, modelscope, or all): 要搜索的来源（ollama、huggingface、modelscope 或全部）：
+Specific GGUF filename to run: 要运行的具体 GGUF 文件名
+Specific model file to download (e.g. Q4_K_M.gguf): 需要下载的具体模型文件（例如：Q4_K_M.gguf）
 Start a service: 启动一个服务
 Stop a service: 停止一个服务
 System management: 系统管理
@@ -388,12 +396,160 @@ help for download: 关于下载的帮助信息
 help for install: 安装帮助
 help for list: 关于列表的帮助信息：
 help for rm: "关于 `rm` 命令的帮助信息：  \n`rm` 是一个用于删除文件的命令。它接受一个或多个文件名作为参数，并将这些文件从文件系统中删除。  \n\n**基本用法：**  \n```bash\nrm 文件名1 文件名2 文件名3\n```\n\n**注意：**  \n- 删除的文件将无法恢复。  \n- 如果文件被其他程序占用（例如，文件正在被读取或写入），`rm` 命令可能会失败并给出错误信息。  \n- 如果文件位于目录中，`rm` 也会删除该目录及其所有内容。  \n\n**示例：**  \n- 删除名为 `example.txt` 的文件：  \n  ```bash\n  rm example.txt\n  ```  \n- 删除名为 `my_directory` 的目录及其所有内容：  \n  ```bash\n  rm my_directory\n  ```  \n\n**更多选项：**  \n- `-f` 或 `--force`：强制删除文件，即使文件被其他程序占用。  \n- `-i` 或 `--ignore-exists`：在删除文件之前显示提示信息。  \n- `-r` 或 `--recursive`：递归删除目录及其所有内容。  \n\n**示例（使用 `-r` 选项）：**  \n- 删除名为 `my_directory` 的目录及其所有内容：  \n  ```bash\n  rm -r my_directory\n  ```"
+help for run: 关于如何运行的帮助
 help for search: 搜索帮助
 help for uninstall: 关于卸载的帮助
 'install step %s failed: %w': 安装步骤 %s 失败：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
 'module %q check failed: %v': 模块 %q 的检查失败：%v
 verbose output: 详细输出（verbose output）
+? |-
+    命中:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  InRelease
+    命中:5 https://apt.postgresql.org/pub/repos/apt jammy-pgdg InRelease
+    命中:6 https://download.docker.com/linux/ubuntu jammy InRelease
+    命中:2 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy InRelease
+    命中:3 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates InRelease
+    命中:4 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports InRelease
+    命中:7 http://security.ubuntu.com/ubuntu jammy-security InRelease
+    获取:8 https://pkgs.tailscale.com/stable/ubuntu jammy InRelease
+    已下载 6,581 B，耗时 1秒 (5,222 B/s)
+    正在读取软件包列表...
+    正在读取软件包列表...
+    正在分析软件包的依赖关系树...
+    正在读取状态信息...
+    ca-certificates 已经是最新版 (20240203~22.04.1)。
+    curl 已经是最新版 (7.81.0-1ubuntu1.21)。
+    python3 已经是最新版 (3.10.6-1~22.04.1)。
+    tar 已经是最新版 (1.34+dfsg-1ubuntu0.1.22.04.2)。
+    tar 已设置为手动安装。
+    您也许需要运行“apt --fix-broken install”来修正上面的错误。
+    下列软件包有未满足的依赖关系：
+     clash-verge : 依赖: libwebkit2gtk-4.1-0 但是它将不会被安装
+    E: 有未能满足的依赖关系。请尝试不指明软件包的名字来运行“apt --fix-broken install”(也可以指定一个解决办法)。
+: |-
+    匹配到的软件源地址：
+    1. https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64 (InRelease)
+    5. https://apt.postgresql.org/pub/repos/apt/jammy-pgdg (InRelease)
+    6. https://download.docker.com/linux/ubuntu/jammy (InRelease)
+    2. http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy (InRelease)
+    3. http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates (InRelease)
+    4. http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports (InRelease)
+    7. https://security.ubuntu.com/ubuntu/jammy-security (InRelease)
+    8. https://pkgs.tailscale.com/stable/ubuntu/jammy (InRelease)
+
+    已下载的数据量为：6,581 字节，耗时 1 秒（下载速度为 5,222 字节/秒）。
+
+    当前正在读取软件包列表……
+    同时正在分析这些软件包之间的依赖关系……
+    此外，以下软件包的依赖关系尚未得到满足：
+    - `clash-verge` 依赖于 `libwebkit2gtk-4.1-0`，但该依赖关系无法被满足（因此 `clash-verge` 无法被安装）。
+
+    提示：您可能需要运行 `apt --fix-broken install` 命令来修复这些依赖关系问题。您也可以尝试在运行该命令时指定具体的解决方案。
+? |-
+    获取:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  InRelease [1,581 B]
+    获取:3 https://download.docker.com/linux/ubuntu jammy InRelease [48.5 kB]
+    获取:5 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  Packages [2,328 kB]
+    命中:2 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy InRelease
+    获取:7 https://download.docker.com/linux/ubuntu jammy/stable amd64 Packages [68.5 kB]
+    获取:4 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates InRelease [128 kB]
+    获取:6 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports InRelease [127 kB]
+    获取:8 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+    获取:9 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/main i386 Packages [939 kB]
+    获取:10 https://pkgs.tailscale.com/stable/ubuntu jammy InRelease
+    获取:11 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/main amd64 Packages [3,188 kB]
+    获取:12 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/main Translation-en [488 kB]
+    获取:13 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/main amd64 DEP-11 Metadata [112 kB]
+    获取:14 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/main amd64 c-n-f Metadata [19.1 kB]
+    获取:15 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/restricted amd64 Packages [5,168 kB]
+    获取:16 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/restricted Translation-en [972 kB]
+    获取:17 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/restricted amd64 DEP-11 Metadata [212 B]
+    获取:18 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/universe amd64 Packages [1,250 kB]
+    获取:19 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/universe i386 Packages [792 kB]
+    获取:20 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/universe Translation-en [311 kB]
+    获取:21 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/universe amd64 DEP-11 Metadata [359 kB]
+    获取:22 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/universe amd64 c-n-f Metadata [30.2 kB]
+    获取:23 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-updates/multiverse amd64 DEP-11 Metadata [940 B]
+    获取:24 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports/main amd64 DEP-11 Metadata [7,288 B]
+    获取:25 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports/restricted amd64 DEP-11 Metadata [212 B]
+    获取:26 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports/universe amd64 DEP-11 Metadata [10.2 kB]
+    获取:27 http://mirrors.tuna.tsinghua.edu.cn/ubuntu jammy-backports/multiverse amd64 DEP-11 Metadata [212 B]
+    获取:28 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [2,905 kB]
+    获取:29 https://apt.postgresql.org/pub/repos/apt jammy-pgdg InRelease [107 kB]
+    获取:30 https://apt.postgresql.org/pub/repos/apt jammy-pgdg/main amd64 Packages [401 kB]
+    获取:31 http://security.ubuntu.com/ubuntu jammy-security/main i386 Packages [753 kB]
+    获取:32 http://security.ubuntu.com/ubuntu jammy-security/main amd64 DEP-11 Metadata [54.6 kB]
+    获取:33 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 DEP-11 Metadata [208 B]
+    获取:34 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1,012 kB]
+    获取:35 http://security.ubuntu.com/ubuntu jammy-security/universe i386 Packages [681 kB]
+    获取:36 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 DEP-11 Metadata [125 kB]
+    获取:37 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 c-n-f Metadata [22.5 kB]
+    获取:38 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 DEP-11 Metadata [208 B]
+    已下载 22.5 MB，耗时 4秒 (5,371 kB/s)
+    正在读取软件包列表...
+    正在读取软件包列表...
+    正在分析软件包的依赖关系树...
+    正在读取状态信息...
+    ca-certificates 已经是最新版 (20240203~22.04.1)。
+    curl 已经是最新版 (7.81.0-1ubuntu1.21)。
+    python3 已经是最新版 (3.10.6-1~22.04.1)。
+    tar 已经是最新版 (1.34+dfsg-1ubuntu0.1.22.04.2)。
+    tar 已设置为手动安装。
+    您也许需要运行“apt --fix-broken install”来修正上面的错误。
+    下列软件包有未满足的依赖关系：
+     clash-verge : 依赖: libwebkit2gtk-4.1-0 但是它将不会被安装
+    E: 有未能满足的依赖关系。请尝试不指明软件包的名字来运行“apt --fix-broken install”(也可以指定一个解决办法)。
+: |-
+    获取的软件包列表如下：
+
+    - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/InRelease [1,581 B]
+    - https://download.docker.com/linux/ubuntu/jammy/InRelease [48.5 kB]
+    - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/Packages [2,328 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy/InRelease
+    - https://download.docker.com/linux/ubuntu/jammy/stable/amd64/Packages [68.5 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/InRelease [128 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports/InRelease [127 kB]
+    - https://security.ubuntu.com/ubuntu/jammy-security/InRelease [129 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/main/i386/Packages [939 kB]
+    - https://pkgs.tailscale.com/stable/ubuntu/jammy/InRelease
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/main/amd64/Packages [3,188 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/main/Translation-en [488 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/main/amd64/DEP-11 Metadata [112 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/main/amd64/c-n-f Metadata [19.1 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/restricted/amd64/Packages [5,168 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/restricted/Translation-en [972 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/restricted/DEP-11 Metadata [212 B]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/universe/amd64/Packages [1,250 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/universe/i386/Packages [792 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/universe/Translation-en [311 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/universe/amd64/DEP-11 Metadata [359 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/universe/amd64/c-n-f Metadata [30.2 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-updates/multiverse/amd64/DEP-11 Metadata [940 B]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports/main/amd64/DEP-11 Metadata [7,288 B]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports/restricted/amd64/DEP-11 Metadata [212 B]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports/universe/amd64/DEP-11 Metadata [10.2 kB]
+    - http://mirrors.tuna.tsinghua.edu.cn/ubuntu/jammy-backports/multiverse/amd64/DEP-11 Metadata [212 B]
+    - http://security.ubuntu.com/ubuntu/jammy-security/main/amd64/Packages [2,905 kB]
+    - https://apt.postgresql.org/pub/repos/apt/jammy-pgdg/InRelease [107 kB]
+    - https://apt.postgresql.org/pub/repos/apt/jammy-pgdg/main/amd64/Packages [401 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/main/i386/Packages [753 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/main/amd64/DEP-11 Metadata [54.6 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/restricted/amd64/DEP-11 Metadata [208 B]
+    - http://security.ubuntu.com/ubuntu/jammy-security/universe/amd64/Packages [1,012 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/universe/i386/Packages [681 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/universe/amd64/DEP-11 Metadata [125 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/universe/amd64/c-n-f Metadata [22.5 kB]
+    - http://security.ubuntu.com/ubuntu/jammy-security/multiverse/amd64/DEP-11 Metadata [208 B]
+
+    已下载的总大小为 22.5 MB，耗时 4 秒（平均下载速度为 5,371 kB/s）。
+
+    当前正在读取软件包列表、分析软件包的依赖关系树以及状态信息。
+
+    注意：`ca-certificates`、`curl`、`python3` 和 `tar` 都已更新到最新版本。您可能需要运行 `apt --fix-broken install` 命令来修复某些可能存在的安装问题。
+
+    此外，以下软件包存在未满足的依赖关系：
+    - `clash-verge` 依赖于 `libwebkit2gtk-4.1-0`，但由于某些原因，该依赖关系无法被满足，因此 `clash-verge` 无法被安装。
+
+    提示：您可以尝试不指定软件包的名称来运行 `apt --fix-broken install` 命令，或者尝试找到并解决这些依赖关系问题。
 详细输出（verbose output）: 详细输出（verbose output）：
 详细输出（verbose output）：: 详细输出（verbose output）：
 配置文件（默认路径为 $HOME/.localaistack/config.yaml）: 配置文件（默认路径为 $HOME/.localaistack/config.yaml）

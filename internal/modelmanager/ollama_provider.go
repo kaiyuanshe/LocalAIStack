@@ -430,7 +430,7 @@ func (p *OllamaProvider) searchFromTags(ctx context.Context, query string, limit
 	return models, nil
 }
 
-func (p *OllamaProvider) Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64)) error {
+func (p *OllamaProvider) Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64), opts DownloadOptions) error {
 	modelDir := filepath.Join(destPath, modelID)
 	if err := os.MkdirAll(modelDir, 0755); err != nil {
 		return fmt.Errorf("failed to create model directory: %w", err)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -140,7 +141,7 @@ func (p *ModelScopeProvider) detectFormatFromTags(tags []string) ModelFormat {
 	return FormatUnknown
 }
 
-func (p *ModelScopeProvider) Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64)) error {
+func (p *ModelScopeProvider) Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64), opts DownloadOptions) error {
 	files, err := p.listModelFiles(ctx, modelID)
 	if err != nil {
 		return fmt.Errorf("failed to list model files: %w", err)
@@ -151,16 +152,12 @@ func (p *ModelScopeProvider) Download(ctx context.Context, modelID string, destP
 		return fmt.Errorf("failed to create model directory: %w", err)
 	}
 
-	for _, file := range files {
-		if file.Type != "file" {
-			continue
-		}
+	candidates, err := filterModelScopeFiles(files, opts.FileHint)
+	if err != nil {
+		return err
+	}
 
-		ext := strings.ToLower(filepath.Ext(file.Path))
-		if ext != ".gguf" && ext != ".safetensors" && ext != ".bin" {
-			continue
-		}
-
+	for _, file := range candidates {
 		fileURL := fmt.Sprintf("%s/models/%s/repo?file_path=%s", modelscopeAPIURL, modelID, file.Path)
 		destFile := filepath.Join(modelDir, filepath.Base(file.Path))
 
@@ -189,6 +186,67 @@ func (p *ModelScopeProvider) Download(ctx context.Context, modelID string, destP
 	}
 
 	return nil
+}
+
+func filterModelScopeFiles(files []ModelScopeFile, hint string) ([]ModelScopeFile, error) {
+	allowed := make([]ModelScopeFile, 0, len(files))
+	for _, file := range files {
+		if file.Type != "file" {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(file.Path))
+		if ext != ".gguf" && ext != ".safetensors" && ext != ".bin" {
+			continue
+		}
+		allowed = append(allowed, file)
+	}
+
+	if hint == "" {
+		return allowed, nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(hint))
+	if normalized == "" {
+		return allowed, nil
+	}
+
+	exact := make([]ModelScopeFile, 0)
+	contains := make([]ModelScopeFile, 0)
+	for _, file := range allowed {
+		base := strings.ToLower(filepath.Base(file.Path))
+		if base == normalized {
+			exact = append(exact, file)
+			continue
+		}
+		if strings.Contains(base, normalized) || strings.Contains(strings.ToLower(file.Path), normalized) {
+			contains = append(contains, file)
+		}
+	}
+
+	if len(exact) == 1 {
+		return exact, nil
+	}
+	if len(exact) > 1 {
+		return nil, fmt.Errorf("multiple files match %q; please specify a more specific filename", hint)
+	}
+	if len(contains) == 1 {
+		return contains, nil
+	}
+	if len(contains) > 1 {
+		names := make([]string, 0, len(contains))
+		for _, file := range contains {
+			names = append(names, filepath.Base(file.Path))
+		}
+		sort.Strings(names)
+		return nil, fmt.Errorf("multiple files match %q: %s", hint, strings.Join(names, ", "))
+	}
+
+	names := make([]string, 0, len(allowed))
+	for _, file := range allowed {
+		names = append(names, filepath.Base(file.Path))
+	}
+	sort.Strings(names)
+	return nil, fmt.Errorf("no files match %q; available: %s", hint, strings.Join(names, ", "))
 }
 
 func (p *ModelScopeProvider) listModelFiles(ctx context.Context, modelID string) ([]ModelScopeFile, error) {
