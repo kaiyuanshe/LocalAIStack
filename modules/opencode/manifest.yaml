@@ -15,6 +15,7 @@ dependencies:
     - curl
     - ca-certificates
     - bash
+    - python3
 
 runtime:
   modes:

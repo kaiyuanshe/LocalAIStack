@@ -32,6 +32,7 @@ dependencies:
   system:
     - curl
     - ca-certificates
+    - python3
 
 preconditions:
   - id: P10
@@ -76,6 +77,13 @@ install:
       command: bash scripts/install.sh
       expected:
         bin: /usr/local/bin/opencode
+      idempotent: true
+    - id: S20
+      intent: Configure local providers
+      tool: shell
+      command: bash scripts/configure_local.sh
+      expected:
+        exit_code: 0
       idempotent: true
 
 verification:
