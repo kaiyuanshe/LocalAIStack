@@ -408,6 +408,7 @@ Uninstall a module: 卸载一个模块
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认路径为 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述
+'failed to parse install plan for module %q: %w': 无法解析模块 %q 的安装计划：%w
 ? 'fatal: 无法访问 ''https://github.com/ggerganov/llama.cpp.git/''：gnutls_handshake() failed: The TLS connection was non-properly terminated.'
 : 错误：无法访问 ‘https://github.com/ggerganov/llama.cpp.git/’：gnutls_handshake() 失败：TLS 连接终止方式不正确。
 help for download: 关于下载的帮助信息
