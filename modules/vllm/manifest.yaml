@@ -1,0 +1,29 @@
+name: vllm
+category: runtime
+version: 0.1.0
+description: High-throughput LLM inference runtime powered by vLLM
+license: Apache-2.0
+
+hardware:
+  cpu:
+    cores_min: 4
+  memory:
+    ram_min: 8GB
+  gpu:
+    vram_min: 8GB
+    multi_gpu: true
+
+dependencies:
+  system:
+    - python3
+    - python3-pip
+    - curl
+
+runtime:
+  modes:
+    - cpu
+  preferred: cpu
+
+interfaces:
+  provides:
+    - local_llm_inference

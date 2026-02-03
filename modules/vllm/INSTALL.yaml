@@ -1,0 +1,121 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: vllm
+category: runtime
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - cpu
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - curl
+  - python3
+
+description:
+  purpose: Install the vLLM runtime from official CPU wheels
+  scope:
+    - install
+    - verify
+    - rollback
+    - uninstall
+    - purge
+  non_goals:
+    - manage models
+    - configure serving
+
+dependencies:
+  system:
+    - python3
+    - python3-pip
+    - curl
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+  - id: P20
+    intent: python3 available
+    tool: shell
+    command: command -v python3
+    expected:
+      exit_code: 0
+  - id: P30
+    intent: pip available
+    tool: shell
+    command: python3 -m pip --version
+    expected:
+      exit_code: 0
+
+decision_matrix:
+  default: cpu
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing vLLM installation
+      tool: shell
+      command: python3 - <<'PY'
+import importlib.util
+import sys
+sys.exit(0 if importlib.util.find_spec('vllm') else 1)
+PY
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Uninstall vLLM
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Purge vLLM
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  cpu:
+    - id: S10
+      intent: Install vLLM CPU wheel
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: localhost
+    auth: none
+  privileges:
+    requires_sudo: true
