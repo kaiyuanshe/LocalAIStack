@@ -806,7 +806,7 @@ func addLlamaCppLibraryPath(cmd *exec.Cmd) error {
 		}
 	}
 	if foundDir == "" {
-		return nil
+		return fmt.Errorf("libmtmd.so.0 not found; reinstall the llama.cpp module or set LD_LIBRARY_PATH to the directory containing libmtmd.so.0 (searched: %s)", strings.Join(libDirs, ", "))
 	}
 
 	env := os.Environ()
