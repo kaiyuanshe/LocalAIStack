@@ -68,11 +68,12 @@ environment_rebuild:
     - id: R10
       intent: Detect existing vLLM installation
       tool: shell
-      command: python3 - <<'PY'
-import importlib.util
-import sys
-sys.exit(0 if importlib.util.find_spec('vllm') else 1)
-PY
+      command: |
+        python3 - <<'PY'
+        import importlib.util
+        import sys
+        sys.exit(0 if importlib.util.find_spec('vllm') else 1)
+        PY
       expected:
         exit_code: 0
   soft_cleanup:
