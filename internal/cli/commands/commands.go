@@ -836,6 +836,9 @@ func candidateLibDirs() []string {
 	return []string{
 		"/usr/local/llama.cpp/build/bin",
 		"/usr/local/llama.cpp/build/lib",
+		"/usr/local/llama.cpp/bin",
+		"/usr/local/llama.cpp/lib",
+		"/usr/local/llama.cpp",
 		"/usr/local/lib",
 		"/usr/lib",
 		"/usr/lib/x86_64-linux-gnu",
