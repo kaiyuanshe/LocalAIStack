@@ -91,6 +91,7 @@ Supported inference engines include:
 * SGLang
 
 Availability is automatically gated by hardware capability (e.g. GPU memory, interconnects).
+When installing llama.cpp, assess whether a GPU is present and its model; if no GPU is available, install the CPU-only build.
 
 ---
 

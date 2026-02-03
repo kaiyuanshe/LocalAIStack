@@ -91,6 +91,7 @@ LocalAIStack 不是单一应用。
 * SGLang
 
 可用性会根据硬件能力（如 GPU 显存、互联带宽）自动限制。
+在安装 llama.cpp 时，应评估是否存在 GPU 及其型号；若没有 GPU，则安装仅依赖 CPU 的版本。
 
 ---
 
