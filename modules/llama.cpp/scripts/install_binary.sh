@@ -12,16 +12,31 @@ fi
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+has_gpu="false"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  has_gpu="true"
+elif command -v lspci >/dev/null 2>&1 && lspci | grep -Eqi 'vga|3d|display'; then
+  has_gpu="true"
+elif [[ -e /dev/dri/card0 ]]; then
+  has_gpu="true"
+fi
+
 arch="$(uname -m)"
 case "$arch" in
   x86_64|amd64)
     arch="x86_64"
-    patterns=(
+    cpu_patterns=(
       "bin-ubuntu-x64.tar.gz"
-      "bin-ubuntu-vulkan-x64.tar.gz"
       "bin-openEuler-x86.tar.gz"
       "bin-310p-openEuler-x86.tar.gz"
     )
+    gpu_patterns=("bin-ubuntu-vulkan-x64.tar.gz")
+    if [[ "$has_gpu" == "true" ]]; then
+      patterns=("${gpu_patterns[@]}" "${cpu_patterns[@]}")
+    else
+      echo "No GPU detected; selecting CPU-only llama.cpp binaries." >&2
+      patterns=("${cpu_patterns[@]}")
+    fi
     ;;
   aarch64|arm64)
     arch="aarch64"
