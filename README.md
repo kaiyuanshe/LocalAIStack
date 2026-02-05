@@ -12,6 +12,7 @@ cd LocalAIStack
 ## 2) 编译
 
 ```bash
+make tidy
 make build
 ```
 
@@ -20,13 +21,47 @@ make build
 ## 3) 使用 `./build/las`
 
 ```bash
-./build/las --help
+./build/las init
 ```
 
-常用示例：
+效果：
+* 创建一个配置文件： `$HOME/.localaistack/config.yaml`
+* 输入：SiliconFlow API Key，系统会使用硅基流动的免费的翻译大模型。
+* 输入：首选语言，你可以输入zh-CN，或者任何你喜欢的语言。
 
 ```bash
-./build/las version
-./build/las help
-./build/las <command> --help
+./build/las module list
 ```
+
+效果：列出LocalAIStack能够管理的软件。
+
+```bash
+./build/las module install ollama
+```
+
+效果：安装Ollama
+
+```bash
+./build/las model search qwen3
+```
+
+效果：搜索qwen3系列模型
+
+
+```bash
+./build/las model download qwen3-coder:30b
+# or
+./build/las model download unsloth/Qwen3-Coder-Next-GGUF
+# or
+./build/las model download unsloth/Qwen3-Coder-Next-GGUF Q4_K_M
+```
+
+效果：从ollama或huggingface下载模型（可以指定尺寸）
+
+```bash
+./build/las model run unsloth/Qwen3-Coder-Next-GGUF
+# or
+./build/las model run unsloth/Qwen3-Coder-Next-GGUF --ctx-size 65536
+```
+
+效果：用llama.cpp启动一个模型

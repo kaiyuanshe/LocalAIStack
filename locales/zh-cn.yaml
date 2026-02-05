@@ -1,6 +1,110 @@
+? |4+
+    ```
+
+: 当然可以！请提供您需要翻译的文本，我会为您进行翻译。
+? |+
+    # LocalAIStack Base Info
+
+: '# LocalAIStack 基本信息'
+? |+
+    ## Raw Command Outputs
+
+: '## 原始命令的输出结果'
+? |+
+    ## System Information
+
+: '## 系统信息'
+? |
+    ### CPU
+: '### CPU'
+? |
+    ### Disk
+: '### 磁盘'
+? |
+    ### GPU
+: '### GPU（图形处理器）'
+? |
+    ### Kernel
+: '### 内核（Kernel）'
+? |
+    ### Memory
+: '### 内存'
+? |
+    ### Network
+: '### 网络'
+? |
+    ### OS
+: '### 操作系统（OS）'
+? |
+    ### Runtime
+: '### 运行时（Runtime）'
+? |
+    ### Version
+: '### 版本'
+'%.1f %cB': '%.1f %cB'
+'%s [%s]: ': '%s [%s]:'
+'%s kB': '%s 千字节'
+'%s; stderr: %s': '%s；标准错误输出（stderr）：%s'
 "- %s\t%s": "- %s\t%s"
+? |+
+    - Docker: %s
+    - Podman: %s
+    - Capabilities: %s
+
+: "- Docker: %s  \n- Podman: %s  \n- 功能（Capabilities）: %s"
+? |+
+    - GPU: %s
+
+: '- GPU：%s'
+? |+
+    - Hostname: %s
+    - Internal IPs: %s
+
+: "- 主机名：%s  \n- 内部 IP 地址：%s"
+? |+
+    - Kernel: %s
+
+: '- 内核：%s'
+? |+
+    - LocalAIStack: %s
+
+: '- LocalAIStack: %s'
+? |+
+    - Model: %s
+    - Cores: %d
+
+: "- 模型：%s  \n- 核心数量：%d"
+? |+
+    - OS: %s
+    - Arch: %s
+
+: "- 操作系统：%s  \n- 架构：%s"
+? |+
+    - Timestamp: %s
+
+: '- 时间戳：%s'
+? |+
+    - Total: %s
+
+: '- 总计：%s'
+? |+
+    - Total: %s
+    - Available: %s
+
+: |-
+    - 总计：%s
+    - 可用：%s
+? |+
+    <summary>%s</summary>
+
+: <summary>%s</summary>
+? |
+    ```text
+: 当然可以！请提供您需要翻译的文本，我会为您进行翻译。
+Base system info written to %s: 基础系统信息已写入到 %s 文件中。
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数（0 表示自动分配）：'
 Check module installation status: 检查模块的安装状态。
+Configuration written to %s: 配置信息已写入到 %s 文件中。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动设置）'
 Detect hardware capabilities: 检测硬件功能
 Download a model: 下载一个模型。
@@ -385,6 +489,7 @@ Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 Not installed: 未安装
 Port to bind llama.cpp server: 用于绑定 llama.cpp 服务器的端口
 Preferred interaction language: 首选的交互语言
+Preferred language: 首选语言
 Remove a downloaded model: 删除已下载的模型。
 Run a local model: 运行一个本地模型。
 Search for models: 搜索模型
@@ -408,6 +513,8 @@ Uninstall a module: 卸载一个模块
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认路径为 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述
+docker=%s; podman=%s: docker=%s; podman=%s
+'error: %s': 错误：%s
 'failed to parse install plan for module %q: %w': 无法解析模块 %q 的安装计划：%w
 ? 'fatal: 无法访问 ''https://github.com/ggerganov/llama.cpp.git/''：gnutls_handshake() failed: The TLS connection was non-properly terminated.'
 : 错误：无法访问 ‘https://github.com/ggerganov/llama.cpp.git/’：gnutls_handshake() 失败：TLS 连接终止方式不正确。
@@ -423,6 +530,10 @@ invalid category %q: 无效的类别：%q
 'load module manifest %s: %w': 加载模块清单文件 %s：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
 'module %q check failed: %v': 模块 %q 的检查失败：%v
+'stderr:': 'stderr:'
+'stdout:': 'stdout:'
+'unknown (%s): %s': 未知（%s）：%s
+'unknown: %s': 未知：%s
 verbose output: 详细输出（verbose output）
 ? |-
     命中:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  InRelease
