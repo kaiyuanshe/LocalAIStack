@@ -8,24 +8,46 @@ else
 fi
 
 PYTHON_BIN="${VLLM_PYTHON:-python3}"
-VENV_DIR="${VLLM_VENV_DIR:-$HOME/.localaistack/venv/vllm}"
-BASE_INFO_PATH="${LAS_BASE_INFO_PATH:-$HOME/.localaistack/base_info.md}"
-VLLM_SOURCE_DIR="${VLLM_SOURCE_DIR:-$HOME/.localaistack/src/vllm}"
-VLLM_UV_PYTHON="${VLLM_UV_PYTHON:-3.12}"
+INSTALL_METHOD="${VLLM_INSTALL_METHOD:-wheel}"
 
-has_avx512() {
-  local flags=""
-  if [[ -f "$BASE_INFO_PATH" ]]; then
-    flags="$(grep -i "flags" "$BASE_INFO_PATH" | head -n 1 | tr -d '\r')"
+install_from_source() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "git is required for source installs. Install git or use VLLM_INSTALL_METHOD=wheel." >&2
+    exit 1
   fi
-  if [[ -z "$flags" && -r /proc/cpuinfo ]]; then
-    flags="$(grep -i "flags" /proc/cpuinfo | head -n 1 | tr -d '\r')"
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "uv is required for source installs. Install uv or use VLLM_INSTALL_METHOD=wheel." >&2
+    exit 1
   fi
-  echo "$flags" | grep -qi "avx512"
+
+  source_dir="${VLLM_SOURCE_DIR:-$HOME/vllm}"
+  repo_url="${VLLM_REPO_URL:-https://github.com/vllm-project/vllm.git}"
+
+  if [[ ! -d "$source_dir/.git" ]]; then
+    git clone "$repo_url" "$source_dir"
+  fi
+
+  pushd "$source_dir" >/dev/null
+
+  uv venv --python "${VLLM_PYTHON_VERSION:-3.12}" --seed
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
+  VLLM_USE_PRECOMPILED=1 uv pip install --editable .
+
+  popd >/dev/null
 }
 
-fetch_latest_version() {
-  "$PYTHON_BIN" - <<'PY'
+if [[ "$INSTALL_METHOD" == "source" ]]; then
+  install_from_source
+  exit 0
+fi
+
+if [[ -n "${VLLM_WHEEL_URL:-}" ]]; then
+  wheel_url="$VLLM_WHEEL_URL"
+else
+  if [[ -z "${VLLM_VERSION:-}" ]]; then
+    VLLM_VERSION="$($PYTHON_BIN - <<'PY'
 import json
 import urllib.request
 
