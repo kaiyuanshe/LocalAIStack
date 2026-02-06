@@ -22,7 +22,7 @@ tools_required:
   - python3
 
 description:
-  purpose: Install the vLLM runtime from official CPU wheels
+  purpose: Install the vLLM runtime from official CPU wheels (or from source via VLLM_INSTALL_METHOD=source)
   scope:
     - install
     - verify
