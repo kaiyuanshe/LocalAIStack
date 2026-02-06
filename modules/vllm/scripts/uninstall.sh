@@ -7,6 +7,24 @@ else
   SUDO=""
 fi
 
-PYTHON_BIN="${VLLM_PYTHON:-python3}"
+VENV_DIR="${VLLM_VENV_DIR:-$HOME/.localaistack/venv/vllm}"
 
-$SUDO "$PYTHON_BIN" -m pip uninstall -y vllm
+remove_wrapper() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    if grep -q "LocalAIStack vllm wrapper" "$path"; then
+      if [[ -n "$SUDO" && "$path" == /usr/local/bin/* ]]; then
+        $SUDO rm -f "$path"
+      else
+        rm -f "$path"
+      fi
+    fi
+  fi
+}
+
+remove_wrapper "/usr/local/bin/vllm"
+remove_wrapper "$HOME/.local/bin/vllm"
+
+if [[ -d "$VENV_DIR" ]]; then
+  rm -rf "$VENV_DIR"
+fi

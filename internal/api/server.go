@@ -37,6 +37,12 @@ func NewServer(cfg *config.Config, controlLayer *control.ControlLayer) *Server {
 	}
 
 	mux.HandleFunc("/api/v1/providers", server.providersHandler)
+	mux.HandleFunc("/", server.uiHandler)
+	mux.HandleFunc("/api/v1/modules", server.modulesListHandler)
+	mux.HandleFunc("/api/v1/module/list", server.moduleListHandler)
+	mux.HandleFunc("/api/v1/module/install", server.moduleInstallHandler)
+	mux.HandleFunc("/api/v1/module/uninstall", server.moduleUninstallHandler)
+	mux.HandleFunc("/api/v1/module/check", server.moduleCheckHandler)
 
 	return server
 }

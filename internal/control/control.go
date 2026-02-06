@@ -2,6 +2,8 @@ package control
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
@@ -63,22 +65,115 @@ func (c *ControlLayer) initHardwareDetector(ctx context.Context) error {
 
 func (c *ControlLayer) initPolicyEngine(ctx context.Context) error {
 	log.Info().Msg(i18n.T("Initializing policy engine"))
-	engine, err := LoadPolicyEngine(c.cfg.Control.PolicyFile)
-	if err != nil {
-		return err
+	paths := policyCandidatePaths(c.cfg.Control.PolicyFile)
+	var lastErr error
+	for _, path := range paths {
+		engine, err := LoadPolicyEngine(path)
+		if err == nil {
+			c.policyEngine = engine
+			log.Info().Str("path", path).Msg(i18n.T("Loaded policy file"))
+			return nil
+		}
+		lastErr = err
 	}
-	c.policyEngine = engine
-	return nil
+	if lastErr != nil {
+		return lastErr
+	}
+	return i18n.Errorf("policy file not found")
+}
+
+func policyCandidatePaths(primary string) []string {
+	seen := map[string]struct{}{}
+	add := func(paths *[]string, value string) {
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		if fileExists(value) {
+			*paths = append(*paths, value)
+			seen[value] = struct{}{}
+		}
+	}
+
+	paths := make([]string, 0, 4)
+	add(&paths, primary)
+
+	if cwd, err := os.Getwd(); err == nil {
+		add(&paths, filepath.Join(cwd, "configs", "policies.yaml"))
+		add(&paths, filepath.Join(cwd, "policies.yaml"))
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		add(&paths, filepath.Join(dir, "configs", "policies.yaml"))
+		add(&paths, filepath.Join(dir, "policies.yaml"))
+	}
+
+	return paths
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+func stateCandidateDirs(primary string) []string {
+	seen := map[string]struct{}{}
+	add := func(paths *[]string, value string) {
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		*paths = append(*paths, value)
+		seen[value] = struct{}{}
+	}
+
+	paths := make([]string, 0, 4)
+	add(&paths, primary)
+
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		add(&paths, filepath.Join(home, ".localaistack"))
+		add(&paths, filepath.Join(home, ".localaistack", "data"))
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		add(&paths, filepath.Join(cwd, "data"))
+		add(&paths, filepath.Join(cwd, ".localaistack"))
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		add(&paths, filepath.Join(dir, "data"))
+		add(&paths, filepath.Join(dir, ".localaistack"))
+	}
+
+	return paths
 }
 
 func (c *ControlLayer) initStateManager(ctx context.Context) error {
 	log.Info().Msg(i18n.T("Initializing state manager"))
-	manager, err := NewStateManager(c.cfg.Control.DataDir)
-	if err != nil {
-		return err
+	paths := stateCandidateDirs(c.cfg.Control.DataDir)
+	var lastErr error
+	for _, path := range paths {
+		manager, err := NewStateManager(path)
+		if err == nil {
+			c.stateManager = manager
+			log.Info().Str("path", path).Msg(i18n.T("State directory ready"))
+			return nil
+		}
+		lastErr = err
 	}
-	c.stateManager = manager
-	return nil
+	if lastErr != nil {
+		return lastErr
+	}
+	return i18n.Errorf("state directory not available")
 }
 
 func (c *ControlLayer) detectHardware(ctx context.Context) error {
