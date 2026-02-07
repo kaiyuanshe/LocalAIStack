@@ -483,6 +483,7 @@ help for download: 关于下载的帮助信息
 help for install: 安装帮助
 help for list: 关于列表的帮助信息：
 help for purge: 关于“purge”的帮助……
+help for repair: 需要帮助进行修复。
 help for rm: "关于 `rm` 命令的帮助信息：  \n`rm` 是一个用于删除文件或目录的命令。它接受一个或多个文件或目录的名称作为参数。如果未指定参数，`rm` 会提示用户输入要删除的文件或目录的名称。  \n\n**使用示例：**  \n- 删除单个文件：`rm example.txt`  \n- 删除多个文件：`rm example.txt example.txt2`  \n- 删除目录及其所有内容：`rm example_directory`  \n\n**注意：**  \n- 使用 `rm` 时请小心，因为它会永久删除文件，无法恢复。  \n- 如果要删除包含其他文件的目录，请确保先删除该目录中的所有文件。  \n\n**更多选项：**  \n- `-f`（强制删除）：忽略文件是否存在的情况，直接删除文件。  \n- `-r`（递归删除）：删除指定目录及其所有子目录和文件。  \n- `-i`（交互式删除）：在删除前会提示用户确认每个文件是否要被删除。"
 help for run: 关于如何运行的帮助信息……
 help for search: 搜索帮助

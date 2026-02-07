@@ -1,0 +1,30 @@
+name: comfyui
+category: application
+version: 0.1.0
+description: Node-based workflow UI for image and video generation
+license: GPL-3.0
+
+hardware:
+  cpu:
+    cores_min: 4
+  memory:
+    ram_min: 8GB
+  gpu:
+    vram_min: 8GB
+    multi_gpu: false
+
+dependencies:
+  system:
+    - git
+    - python3
+    - python3-venv
+    - python3-pip
+
+runtime:
+  modes:
+    - native
+  preferred: native
+
+interfaces:
+  provides:
+    - comfyui_web_ui

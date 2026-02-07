@@ -1,0 +1,118 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: comfyui
+category: application
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - native
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - git
+  - python3
+
+description:
+  purpose: Install ComfyUI from the official GitHub repository into a dedicated Python virtual environment
+  scope:
+    - install
+    - verify
+    - rollback
+    - uninstall
+    - purge
+  non_goals:
+    - install NVIDIA drivers or CUDA toolkit
+    - download models
+
+dependencies:
+  system:
+    - git
+    - python3
+    - python3-venv
+    - python3-pip
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+  - id: P20
+    intent: git available
+    tool: shell
+    command: command -v git
+    expected:
+      exit_code: 0
+  - id: P30
+    intent: python3 available
+    tool: shell
+    command: command -v python3
+    expected:
+      exit_code: 0
+
+decision_matrix:
+  default: native
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing ComfyUI directory
+      tool: shell
+      command: test -d "${COMFYUI_HOME:-$HOME/.local/share/localaistack/comfyui}"
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Remove ComfyUI launcher only
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Purge ComfyUI installation and data
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  native:
+    - id: S10
+      intent: Install ComfyUI
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: localhost
+    auth: none
+  privileges:
+    requires_sudo: false
