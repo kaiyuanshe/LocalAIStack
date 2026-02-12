@@ -1,0 +1,27 @@
+name: openclaw
+category: tool
+version: 0.1.0
+description: OpenClaw AI coding assistant CLI
+license: unknown
+
+hardware:
+  cpu:
+    cores_min: 2
+  memory:
+    ram_min: 2GB
+
+dependencies:
+  system:
+    - bash
+    - curl
+    - ca-certificates
+    - python3
+
+runtime:
+  modes:
+    - native
+  preferred: native
+
+interfaces:
+  provides:
+    - ai_coding_assistant

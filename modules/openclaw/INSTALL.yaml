@@ -1,0 +1,109 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: openclaw
+category: tools
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - native
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - curl
+
+description:
+  purpose: Install the OpenClaw CLI
+  scope:
+    - install
+    - configure
+    - verify
+    - rollback
+    - uninstall
+    - purge
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - python3
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+
+decision_matrix:
+  default: native
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing OpenClaw binary
+      tool: shell
+      command: command -v openclaw
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Remove OpenClaw binary
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Remove OpenClaw binary and local data
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  native:
+    - id: S10
+      intent: Install OpenClaw via official installer or package manager fallback
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        bin: /usr/local/bin/openclaw
+      idempotent: true
+    - id: S20
+      intent: Configure local providers for OpenClaw
+      tool: shell
+      command: bash scripts/configure_local.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: n/a
+    auth: n/a
+  privileges:
+    requires_sudo: true
