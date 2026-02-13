@@ -154,8 +154,8 @@ func runPreconditions(preconditions []installPrecondition, moduleDir string) err
 				return i18n.Errorf("precondition %s failed: expected exit code %d but got %d", pre.ID, *pre.Expected.ExitCode, exitCode)
 			}
 			if pre.Expected.Equals != "" {
-				if strings.TrimSpace(output) != strings.TrimSpace(pre.Expected.Equals) {
-					return i18n.Errorf("precondition %s failed: expected %q but got %q", pre.ID, pre.Expected.Equals, strings.TrimSpace(output))
+				if normalizedOutput(output) != normalizedOutput(pre.Expected.Equals) {
+					return i18n.Errorf("precondition %s failed: expected %q but got %q", pre.ID, normalizedOutput(pre.Expected.Equals), normalizedOutput(output))
 				}
 			}
 		default:
@@ -306,8 +306,8 @@ func runInstallStep(moduleName, moduleDir string, step installStep, vars map[str
 			return i18n.Errorf("install step %s failed: expected exit code %d but got %d", step.ID, *step.Expected.ExitCode, exitCode)
 		}
 		if step.Expected.Equals != "" {
-			if strings.TrimSpace(output) != strings.TrimSpace(step.Expected.Equals) {
-				return i18n.Errorf("install step %s failed: expected %q but got %q", step.ID, step.Expected.Equals, strings.TrimSpace(output))
+			if normalizedOutput(output) != normalizedOutput(step.Expected.Equals) {
+				return i18n.Errorf("install step %s failed: expected %q but got %q", step.ID, normalizedOutput(step.Expected.Equals), normalizedOutput(output))
 			}
 		}
 	case "template":
@@ -331,9 +331,7 @@ func runShellCommand(command, moduleDir string, stream bool) (string, int, error
 func runShellCommandWithEnv(command, moduleDir string, stream bool, env map[string]string) (string, int, error) {
 	cmd := exec.Command("bash", "-c", command)
 	cmd.Dir = moduleDir
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), formatEnv(env)...)
-	}
+	cmd.Env = commandEnv(env)
 	if stream {
 		var buffer bytes.Buffer
 		writer := io.MultiWriter(&buffer, os.Stdout)
@@ -346,11 +344,11 @@ func runShellCommandWithEnv(command, moduleDir string, stream bool, env map[stri
 		}
 		output := buffer.String()
 		if err != nil {
-			message := strings.TrimSpace(output)
+			message := normalizedOutput(output)
 			if message == "" {
 				return "", exitCode, err
 			}
-			return message, exitCode, i18n.Errorf(message)
+			return message, exitCode, i18n.Errorf("%s", message)
 		}
 		return output, exitCode, nil
 	}
@@ -361,13 +359,53 @@ func runShellCommandWithEnv(command, moduleDir string, stream bool, env map[stri
 		exitCode = cmd.ProcessState.ExitCode()
 	}
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := normalizedOutput(string(output))
 		if message == "" {
 			return "", exitCode, err
 		}
-		return message, exitCode, i18n.Errorf(message)
+		return message, exitCode, i18n.Errorf("%s", message)
 	}
 	return string(output), exitCode, nil
+}
+
+func commandEnv(extra map[string]string) []string {
+	env := append([]string{}, os.Environ()...)
+	if !hasEnvKey(env, "NO_COLOR") {
+		env = append(env, "NO_COLOR=1")
+	}
+	if !hasEnvKey(env, "CLICOLOR") {
+		env = append(env, "CLICOLOR=0")
+	}
+	if !hasEnvKey(env, "CLICOLOR_FORCE") {
+		env = append(env, "CLICOLOR_FORCE=0")
+	}
+	if len(extra) > 0 {
+		env = append(env, formatEnv(extra)...)
+	}
+	return env
+}
+
+func hasEnvKey(env []string, key string) bool {
+	for _, item := range env {
+		parts := strings.SplitN(item, "=", 2)
+		if len(parts) == 2 && parts[0] == key {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizedOutput(output string) string {
+	cleaned := stripANSIEscapes(output)
+	cleaned = strings.ReplaceAll(cleaned, "\r\n", "\n")
+	cleaned = strings.ReplaceAll(cleaned, "\r", "\n")
+	return strings.TrimSpace(cleaned)
+}
+
+var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x1b\x07]*(?:\x07|\x1b\\)|\x1b[@-_]`)
+
+func stripANSIEscapes(s string) string {
+	return ansiEscapePattern.ReplaceAllString(s, "")
 }
 
 func formatEnv(values map[string]string) []string {
@@ -487,11 +525,19 @@ func flattenDefaults(defaults map[string]any) map[string]string {
 
 func validateExpected(moduleName, moduleDir string, expect installExpect) error {
 	if expect.Bin != "" {
-		if !filepath.IsAbs(expect.Bin) {
-			return i18n.Errorf("expected bin path must be absolute")
-		}
-		if _, err := os.Stat(expect.Bin); err != nil {
-			return err
+		bin := strings.TrimSpace(expect.Bin)
+		if filepath.IsAbs(bin) {
+			if _, err := os.Stat(bin); err != nil {
+				// Some installers place binaries in a different PATH location (e.g. /usr/bin).
+				// Fall back to PATH lookup for the same command name.
+				if _, lookupErr := exec.LookPath(filepath.Base(bin)); lookupErr != nil {
+					return err
+				}
+			}
+		} else {
+			if _, err := exec.LookPath(bin); err != nil {
+				return err
+			}
 		}
 	}
 	if expect.Unit != "" {

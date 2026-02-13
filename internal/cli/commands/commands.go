@@ -130,11 +130,29 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		},
 	}
 
+	settingCmd := &cobra.Command{
+		Use:   "setting [module-name] [setting-args...]",
+		Short: "Run module-specific settings",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			settingArgs := args[1:]
+			cmd.Printf("%s\n", i18n.T("Running module setting: %s %s", name, strings.Join(settingArgs, " ")))
+			if err := module.Setting(name, settingArgs); err != nil {
+				cmd.Printf("%s\n", i18n.T("Module setting failed: %s", err))
+				return err
+			}
+			cmd.Printf("%s\n", i18n.T("Module setting finished: %s", name))
+			return nil
+		},
+	}
+
 	moduleCmd.AddCommand(installCmd)
 	moduleCmd.AddCommand(uninstallCmd)
 	moduleCmd.AddCommand(purgeCmd)
 	moduleCmd.AddCommand(listCmd)
 	moduleCmd.AddCommand(checkCmd)
+	moduleCmd.AddCommand(settingCmd)
 	rootCmd.AddCommand(moduleCmd)
 }
 

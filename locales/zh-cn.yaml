@@ -408,6 +408,7 @@ Module %s purged successfully.: 模块 %s 已成功清除。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module check failed: %s': 模块检查失败：%s
 'Module install failed: %s': 模块安装失败：%s
+'Module setting finished: %s': 模块设置已完成：%s
 Modules: 模块（Modules）
 Name: 名称
 No modules found.: 未找到任何模块。
@@ -421,6 +422,8 @@ Ready: 准备好了。
 Refresh: 刷新
 Remove a downloaded model: 删除已下载的模型
 Run a local model: 运行一个本地模型。
+Run module-specific settings: 运行模块特定的设置
+'Running module setting: %s %s': 正在运行模块的设置：%s %s
 Running...: 正在运行…
 Search for models: 搜索模型
 Show system information: 显示系统信息
@@ -487,6 +490,7 @@ help for repair: 需要帮助进行修复。
 help for rm: "关于 `rm` 命令的帮助信息：  \n`rm` 是一个用于删除文件或目录的命令。它接受一个或多个文件或目录的名称作为参数。如果未指定参数，`rm` 会提示用户输入要删除的文件或目录的名称。  \n\n**使用示例：**  \n- 删除单个文件：`rm example.txt`  \n- 删除多个文件：`rm example.txt example.txt2`  \n- 删除目录及其所有内容：`rm example_directory`  \n\n**注意：**  \n- 使用 `rm` 时请小心，因为它会永久删除文件，无法恢复。  \n- 如果要删除包含其他文件的目录，请确保先删除该目录中的所有文件。  \n\n**更多选项：**  \n- `-f`（强制删除）：忽略文件是否存在的情况，直接删除文件。  \n- `-r`（递归删除）：删除指定目录及其所有子目录和文件。  \n- `-i`（交互式删除）：在删除前会提示用户确认每个文件是否要被删除。"
 help for run: 关于如何运行的帮助信息……
 help for search: 搜索帮助
+help for setting: 关于设置的帮助
 help for uninstall: 关于卸载的帮助信息：
 'install step %s failed: %w': 安装步骤 %s 失败：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
