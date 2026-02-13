@@ -1,9 +1,8 @@
 package system
 
 import (
-	"bufio"
-	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -16,67 +15,156 @@ type BaseInfoSummary struct {
 }
 
 func LoadBaseInfoSummary(path string) (BaseInfoSummary, error) {
-	file, err := os.Open(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return BaseInfoSummary{}, err
 	}
-	defer file.Close()
 
 	var summary BaseInfoSummary
-	section := ""
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "### ") {
-			section = strings.TrimSpace(strings.TrimPrefix(line, "### "))
-			continue
-		}
-		if line == "" {
-			continue
-		}
 
-		switch {
-		case section == "CPU" && strings.HasPrefix(line, "- Cores:"):
-			value := strings.TrimSpace(strings.TrimPrefix(line, "- Cores:"))
-			if cores, err := strconv.Atoi(value); err == nil {
-				summary.CPUCores = cores
-			}
-		case section == "Memory" && strings.HasPrefix(line, "- Total:"):
-			value := strings.TrimSpace(strings.TrimPrefix(line, "- Total:"))
-			if fields := strings.Fields(value); len(fields) >= 2 {
-				if total, err := strconv.ParseInt(fields[0], 10, 64); err == nil {
-					summary.MemoryKB = total
-				}
-			}
-		case section == "GPU":
-			if strings.HasPrefix(line, "- GPU:") {
-				name := strings.TrimSpace(strings.TrimPrefix(line, "- GPU:"))
-				if summary.GPUName == "" {
-					summary.GPUName = name
-				}
-				if name != "" {
-					summary.GPUCount++
-				}
-				continue
-			}
-			if strings.HasPrefix(line, "-") {
-				continue
-			}
-			if summary.GPUName == "" {
-				summary.GPUName = line
-			}
-			if line != "" {
-				summary.GPUCount++
-			}
+	content := string(raw)
+	cpuSection := extractMarkdownSection(content, "CPU")
+	memorySection := extractMarkdownSection(content, "Memory")
+	gpuSection := extractMarkdownSection(content, "GPU")
+
+	if cores, ok := extractFirstInt(cpuSection, `-\s*(?:Cores|核心数量)\s*[:：]\s*(\d+)`); ok {
+		summary.CPUCores = cores
+	}
+	if summary.CPUCores == 0 {
+		if cores, ok := extractFirstInt(content, `-\s*(?:Cores|核心数量)\s*[:：]\s*(\d+)`); ok {
+			summary.CPUCores = cores
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return BaseInfoSummary{}, fmt.Errorf("read base info: %w", err)
+	if totalKB, ok := extractFirstInt64(memorySection, `-\s*(?:Total|总计)\s*[:：]\s*(\d+)\s*(?:kB|KB|千字节)`); ok {
+		summary.MemoryKB = totalKB
+	}
+	if summary.MemoryKB == 0 {
+		if totalKB, ok := extractFirstInt64(content, `-\s*(?:Total|总计)\s*[:：]\s*(\d+)\s*(?:kB|KB|千字节)`); ok {
+			summary.MemoryKB = totalKB
+		}
+	}
+
+	gpuEntries := extractGPUEntries(gpuSection)
+	if len(gpuEntries) == 0 {
+		gpuEntries = extractExplicitGPUEntries(content)
+	}
+	if len(gpuEntries) > 0 {
+		summary.GPUName = gpuEntries[0]
+		summary.GPUCount = len(gpuEntries)
 	}
 
 	if summary.GPUCount == 0 && summary.GPUName != "" {
 		summary.GPUCount = 1
 	}
 	return summary, nil
+}
+
+func extractMarkdownSection(content, sectionName string) string {
+	pattern := `(?is)###\s*` + regexp.QuoteMeta(sectionName) + `\b([\s\S]*?)(?:\n###\s|\n##\s)`
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(content)
+	if len(match) >= 2 {
+		return strings.TrimSpace(match[1])
+	}
+	// Fallback for malformed markdown where line breaks are missing.
+	inlinePattern := `(?is)###\s*` + regexp.QuoteMeta(sectionName) + `\b([\s\S]*?)(?:###|##|\z)`
+	inlineRE := regexp.MustCompile(inlinePattern)
+	inlineMatch := inlineRE.FindStringSubmatch(content)
+	if len(inlineMatch) >= 2 {
+		return strings.TrimSpace(inlineMatch[1])
+	}
+	return ""
+}
+
+func extractFirstInt(content, pattern string) (int, bool) {
+	re := regexp.MustCompile(`(?i)` + pattern)
+	match := re.FindStringSubmatch(content)
+	if len(match) < 2 {
+		return 0, false
+	}
+	value, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func extractFirstInt64(content, pattern string) (int64, bool) {
+	re := regexp.MustCompile(`(?i)` + pattern)
+	match := re.FindStringSubmatch(content)
+	if len(match) < 2 {
+		return 0, false
+	}
+	value, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func extractGPUEntries(content string) []string {
+	if strings.TrimSpace(content) == "" {
+		return nil
+	}
+
+	entries := make([]string, 0)
+
+	// Support normal markdown lines and malformed "### GPU- GPU: xxx" layout.
+	bulletRe := regexp.MustCompile(`(?im)-\s*GPU(?:\s*\([^)]+\)|（[^）]+）)?\s*[:：]\s*([^\n#]+)`)
+	for _, match := range bulletRe.FindAllStringSubmatch(content, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		addGPUEntry(&entries, match[1])
+	}
+
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "-") {
+			continue
+		}
+		if strings.EqualFold(trimmed, "GPU") {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if strings.Contains(lower, "gpu:") || strings.Contains(trimmed, "GPU：") {
+			continue
+		}
+		addGPUEntry(&entries, trimmed)
+	}
+
+	return entries
+}
+
+func extractExplicitGPUEntries(content string) []string {
+	if strings.TrimSpace(content) == "" {
+		return nil
+	}
+	entries := make([]string, 0)
+	bulletRe := regexp.MustCompile(`(?im)-\s*GPU(?:\s*\([^)]+\)|（[^）]+）)?\s*[:：]\s*([^\n#]+)`)
+	for _, match := range bulletRe.FindAllStringSubmatch(content, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		addGPUEntry(&entries, match[1])
+	}
+	return entries
+}
+
+func addGPUEntry(entries *[]string, value string) {
+	name := strings.TrimSpace(value)
+	if idx := strings.Index(name, "###"); idx >= 0 {
+		name = strings.TrimSpace(name[:idx])
+	}
+	if idx := strings.Index(name, "##"); idx >= 0 {
+		name = strings.TrimSpace(name[:idx])
+	}
+	if name == "" || strings.HasPrefix(strings.ToLower(name), "unknown") {
+		return
+	}
+	*entries = append(*entries, name)
 }

@@ -415,6 +415,12 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				return fmt.Errorf("no supported model files found for %s", modelID)
 			}
 
+			baseInfoPath := resolveBaseInfoPath()
+			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
+			if err != nil {
+				return fmt.Errorf("failed to read base info at %s (try `./build/las system init`): %w", baseInfoPath, err)
+			}
+
 			if len(safetensorsFiles) > 0 {
 				modelRef := modelDir
 				if !hasVLLMConfig(modelDir) {
@@ -431,13 +437,20 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				if err != nil {
 					return fmt.Errorf("vllm not found in PATH (install the vllm module first)")
 				}
-				cmd.Printf("Starting vLLM server for %s\n", modelID)
-				args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+				vllmDefaults := defaultVLLMRunParams(baseInfo)
 				if vllmMaxModelLen > 0 {
-					args = append(args, "--max-model-len", strconv.Itoa(vllmMaxModelLen))
+					vllmDefaults.maxModelLen = vllmMaxModelLen
 				}
 				if vllmGpuMemUtil > 0 {
-					args = append(args, "--gpu-memory-utilization", fmt.Sprintf("%.2f", vllmGpuMemUtil))
+					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
+				}
+				cmd.Printf("Starting vLLM server for %s\n", modelID)
+				args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+				if vllmDefaults.maxModelLen > 0 {
+					args = append(args, "--max-model-len", strconv.Itoa(vllmDefaults.maxModelLen))
+				}
+				if vllmDefaults.gpuMemUtil > 0 {
+					args = append(args, "--gpu-memory-utilization", fmt.Sprintf("%.2f", vllmDefaults.gpuMemUtil))
 				}
 				runCmd := exec.CommandContext(cmd.Context(), vllmPath, args...)
 				runCmd.Stdout = cmd.OutOrStdout()
@@ -452,12 +465,6 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			}
 			if autoSelected && len(ggufFiles) > 1 {
 				cmd.Printf("Auto-selected GGUF file: %s\n", filepath.Base(modelPath))
-			}
-
-			baseInfoPath := resolveBaseInfoPath()
-			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
-			if err != nil {
-				return fmt.Errorf("failed to read base info at %s (try `./build/las system init`): %w", baseInfoPath, err)
 			}
 
 			defaults := defaultLlamaRunParams(baseInfo)
@@ -702,10 +709,15 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 }
 
 type llamaRunDefaults struct {
-	threads   int
-	ctxSize   int
-	gpuLayers int
+	threads     int
+	ctxSize     int
+	gpuLayers   int
 	tensorSplit string
+}
+
+type vllmRunDefaults struct {
+	maxModelLen int
+	gpuMemUtil  float64
 }
 
 func resolveBaseInfoPath() string {
@@ -763,10 +775,64 @@ func defaultLlamaRunParams(info system.BaseInfoSummary) llamaRunDefaults {
 	}
 
 	return llamaRunDefaults{
-		threads:   threads,
-		ctxSize:   ctxSize,
-		gpuLayers: gpuLayers,
+		threads:     threads,
+		ctxSize:     ctxSize,
+		gpuLayers:   gpuLayers,
 		tensorSplit: "",
+	}
+}
+
+func defaultVLLMRunParams(info system.BaseInfoSummary) vllmRunDefaults {
+	vram := parseVRAMFromGPUName(info.GPUName)
+	gpuCount := info.GPUCount
+	if gpuCount <= 0 && vram > 0 {
+		gpuCount = 1
+	}
+
+	maxModelLen := 2048
+	switch {
+	case vram >= 80:
+		maxModelLen = 32768
+	case vram >= 48:
+		maxModelLen = 24576
+	case vram >= 24:
+		maxModelLen = 16384
+	case vram >= 16:
+		maxModelLen = 8192
+	case vram >= 12:
+		maxModelLen = 6144
+	case vram > 0:
+		maxModelLen = 4096
+	default:
+		switch {
+		case info.MemoryKB >= 128*1024*1024:
+			maxModelLen = 8192
+		case info.MemoryKB >= 64*1024*1024:
+			maxModelLen = 4096
+		default:
+			maxModelLen = 2048
+		}
+	}
+
+	gpuMemUtil := 0.0
+	if gpuCount > 0 && vram > 0 {
+		switch {
+		case vram >= 80:
+			gpuMemUtil = 0.92
+		case vram >= 48:
+			gpuMemUtil = 0.90
+		case vram >= 24:
+			gpuMemUtil = 0.88
+		case vram >= 16:
+			gpuMemUtil = 0.86
+		default:
+			gpuMemUtil = 0.82
+		}
+	}
+
+	return vllmRunDefaults{
+		maxModelLen: maxModelLen,
+		gpuMemUtil:  gpuMemUtil,
 	}
 }
 
