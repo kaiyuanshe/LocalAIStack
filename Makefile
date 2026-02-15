@@ -152,11 +152,67 @@ dev:
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(SERVER_BINARY) ./cmd/server
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_BINARY) ./cmd/cli
 
-# Docker targets (optional)
+# Docker variables
+REGISTRY ?= ghcr.io/zhuangbiaowei
+IMAGE_NAME ?= localaistack
+DOCKER_TARGET ?= runtime-alpine
+
 .PHONY: docker-build
 docker-build:
-	docker build -t $(BINARY_NAME):$(VERSION) .
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--target $(DOCKER_TARGET) \
+		-t $(IMAGE_NAME):$(VERSION) \
+		-t $(IMAGE_NAME):latest \
+		.
+
+.PHONY: docker-build-cuda
+docker-build-cuda:
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--target runtime-cuda \
+		-t $(IMAGE_NAME):$(VERSION)-cuda \
+		-t $(IMAGE_NAME):cuda \
+		.
+
+.PHONY: docker-build-all
+docker-build-all: docker-build docker-build-cuda
+
+.PHONY: docker-buildx
+docker-buildx:
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--build-arg VERSION=$(VERSION) \
+		--target $(DOCKER_TARGET) \
+		-t $(REGISTRY)/$(IMAGE_NAME):$(VERSION) \
+		-t $(REGISTRY)/$(IMAGE_NAME):latest \
+		--push .
+
+.PHONY: docker-buildx-cuda
+docker-buildx-cuda:
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--build-arg VERSION=$(VERSION) \
+		--target runtime-cuda \
+		-t $(REGISTRY)/$(IMAGE_NAME):$(VERSION)-cuda \
+		-t $(REGISTRY)/$(IMAGE_NAME):cuda \
+		--push .
+
+.PHONY: docker-run
+docker-run:
+	docker run --rm -it \
+		-v ~/.localaistack:/home/appuser/.localaistack \
+		-v ~/.ollama:/home/appuser/.ollama \
+		$(IMAGE_NAME):$(VERSION) --help
+
+.PHONY: docker-run-gpu
+docker-run-gpu:
+	docker run --rm -it --gpus all \
+		-v ~/.localaistack:/home/appuser/.localaistack \
+		-v ~/.ollama:/home/appuser/.ollama \
+		$(IMAGE_NAME):$(VERSION)-cuda --help
 
 .PHONY: docker-push
 docker-push: docker-build
-	docker push $(BINARY_NAME):$(VERSION)
+	docker push $(IMAGE_NAME):$(VERSION)
+	docker push $(IMAGE_NAME):latest

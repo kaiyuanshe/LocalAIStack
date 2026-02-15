@@ -362,6 +362,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			port, _ := cmd.Flags().GetInt("port")
 			vllmMaxModelLen, _ := cmd.Flags().GetInt("vllm-max-model-len")
 			vllmGpuMemUtil, _ := cmd.Flags().GetFloat64("vllm-gpu-memory-utilization")
+			vllmTrustRemoteCode, _ := cmd.Flags().GetBool("vllm-trust-remote-code")
 
 			mgr := createModelManager()
 
@@ -446,13 +447,38 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				}
 				cmd.Printf("Starting vLLM server for %s\n", modelID)
 				args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+				if vllmDefaults.dtype != "" {
+					args = append(args, "--dtype", vllmDefaults.dtype)
+				}
 				if vllmDefaults.maxModelLen > 0 {
 					args = append(args, "--max-model-len", strconv.Itoa(vllmDefaults.maxModelLen))
 				}
 				if vllmDefaults.gpuMemUtil > 0 {
 					args = append(args, "--gpu-memory-utilization", fmt.Sprintf("%.2f", vllmDefaults.gpuMemUtil))
 				}
+				if vllmDefaults.tensorParallelSize > 1 {
+					args = append(args, "--tensor-parallel-size", strconv.Itoa(vllmDefaults.tensorParallelSize))
+				}
+				if vllmDefaults.enforceEager {
+					args = append(args, "--enforce-eager")
+				}
+				if vllmDefaults.optimizationLevel >= 0 {
+					args = append(args, "--optimization-level", strconv.Itoa(vllmDefaults.optimizationLevel))
+				}
+				if vllmDefaults.disableCustomAllReduce {
+					args = append(args, "--disable-custom-all-reduce")
+				}
+				if vllmDefaults.maxNumSeqs > 0 {
+					args = append(args, "--max-num-seqs", strconv.Itoa(vllmDefaults.maxNumSeqs))
+				}
+				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
+				if enableTrustRemoteCode {
+					args = append(args, "--trust-remote-code")
+				}
 				runCmd := exec.CommandContext(cmd.Context(), vllmPath, args...)
+				if len(vllmDefaults.env) > 0 {
+					runCmd.Env = append(os.Environ(), vllmDefaults.env...)
+				}
 				runCmd.Stdout = cmd.OutOrStdout()
 				runCmd.Stderr = cmd.ErrOrStderr()
 				runCmd.Stdin = cmd.InOrStdin()
@@ -520,6 +546,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
 	runCmd.Flags().Int("vllm-max-model-len", 0, "vLLM max model length (safetensors only)")
 	runCmd.Flags().Float64("vllm-gpu-memory-utilization", 0, "vLLM GPU memory utilization (0-1, safetensors only)")
+	runCmd.Flags().Bool("vllm-trust-remote-code", false, "Allow vLLM to execute model custom code from repo (safetensors only)")
 
 	rmCmd := &cobra.Command{
 		Use:   "rm [model-id]",
@@ -716,8 +743,15 @@ type llamaRunDefaults struct {
 }
 
 type vllmRunDefaults struct {
-	maxModelLen int
-	gpuMemUtil  float64
+	maxModelLen            int
+	gpuMemUtil             float64
+	dtype                  string
+	tensorParallelSize     int
+	enforceEager           bool
+	optimizationLevel      int
+	maxNumSeqs             int
+	disableCustomAllReduce bool
+	env                    []string
 }
 
 func resolveBaseInfoPath() string {
@@ -788,6 +822,8 @@ func defaultVLLMRunParams(info system.BaseInfoSummary) vllmRunDefaults {
 	if gpuCount <= 0 && vram > 0 {
 		gpuCount = 1
 	}
+	perGPUVRAM := vram
+	legacyGPU := isLegacyCUDAInferenceGPU(info.GPUName)
 
 	maxModelLen := 2048
 	switch {
@@ -830,9 +866,71 @@ func defaultVLLMRunParams(info system.BaseInfoSummary) vllmRunDefaults {
 		}
 	}
 
+	// Keep memory pressure conservative on 16GB-class cards to avoid
+	// startup failures while probing KV cache memory.
+	if perGPUVRAM > 0 && perGPUVRAM <= 16 {
+		if maxModelLen > 2048 {
+			maxModelLen = 2048
+		}
+		if gpuMemUtil == 0 || gpuMemUtil != 0.88 {
+			gpuMemUtil = 0.88
+		}
+	}
+
+	tpSize := 1
+	if gpuCount >= 2 && perGPUVRAM > 0 && perGPUVRAM <= 24 {
+		tpSize = 2
+	} else if gpuCount > 0 {
+		tpSize = gpuCount
+	}
+	if tpSize < 1 {
+		tpSize = 1
+	}
+
+	dtype := ""
+	if gpuCount > 0 {
+		if legacyGPU {
+			dtype = "float16"
+		}
+	}
+
+	enforceEager := false
+	optimizationLevel := 2
+	if legacyGPU || (perGPUVRAM > 0 && perGPUVRAM <= 16) {
+		enforceEager = true
+		optimizationLevel = 0
+	}
+
+	maxNumSeqs := 16
+	switch {
+	case perGPUVRAM > 0 && perGPUVRAM <= 16:
+		if tpSize > 1 {
+			maxNumSeqs = 2
+		} else {
+			maxNumSeqs = 4
+		}
+	case perGPUVRAM > 0 && perGPUVRAM <= 24:
+		maxNumSeqs = 8
+	case perGPUVRAM > 0 && perGPUVRAM <= 48:
+		maxNumSeqs = 12
+	}
+
+	disableCustomAllReduce := tpSize > 1 && (legacyGPU || perGPUVRAM <= 16)
+	env := make([]string, 0, 2)
+	if disableCustomAllReduce {
+		env = append(env, "NCCL_IB_DISABLE=1", "NCCL_P2P_DISABLE=1")
+	}
+
 	return vllmRunDefaults{
-		maxModelLen: maxModelLen,
-		gpuMemUtil:  gpuMemUtil,
+		maxModelLen:            maxModelLen,
+		gpuMemUtil:             gpuMemUtil,
+		dtype:                  dtype,
+		tensorParallelSize:     tpSize,
+		enforceEager:           enforceEager,
+		optimizationLevel:      optimizationLevel,
+		maxNumSeqs:             maxNumSeqs,
+		disableCustomAllReduce: disableCustomAllReduce,
+		env:                    env,
 	}
 }
 
@@ -850,6 +948,28 @@ func parseVRAMFromGPUName(name string) int {
 		return 0
 	}
 	return value
+}
+
+func isLegacyCUDAInferenceGPU(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" {
+		return false
+	}
+	legacyMarkers := []string{
+		"v100",
+		"p100",
+		"p40",
+		"p4",
+		"k80",
+		"k40",
+		"m60",
+	}
+	for _, marker := range legacyMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func inferModelInfo(filename string) (float64, string) {
@@ -956,6 +1076,51 @@ func hasVLLMConfig(modelDir string) bool {
 		return true
 	}
 	return false
+}
+
+func shouldAutoEnableVLLMTrustRemoteCode(modelDir string) bool {
+	configFiles := []string{
+		"config.json",
+		"tokenizer_config.json",
+		"preprocessor_config.json",
+		"processor_config.json",
+	}
+	for _, name := range configFiles {
+		if configHasAutoMap(filepath.Join(modelDir, name)) {
+			return true
+		}
+	}
+
+	pythonFiles, err := filepath.Glob(filepath.Join(modelDir, "*.py"))
+	if err == nil && len(pythonFiles) > 0 {
+		return true
+	}
+	return false
+}
+
+func configHasAutoMap(path string) bool {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	value, ok := payload["auto_map"]
+	if !ok || value == nil {
+		return false
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		return len(v) > 0
+	case []any:
+		return len(v) > 0
+	case string:
+		return strings.TrimSpace(v) != ""
+	default:
+		return true
+	}
 }
 
 type modelMetadata struct {

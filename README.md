@@ -42,6 +42,7 @@ make build
 效果：安装Ollama
 
 ```bash
+export HF_ENDPOINT=https://hf-mirror.com
 ./build/las model search qwen3
 ```
 
@@ -65,3 +66,22 @@ make build
 ```
 
 效果：用llama.cpp启动一个模型
+
+```bash
+./build/las model search ByteDance
+./build/las model download ByteDance/Ouro-2.6B-Thinking
+./build/las model run ByteDance/Ouro-2.6B-Thinking
+```
+
+效果：用vllm启动一个safetensors格式的模型。
+
+```bash
+./build/las model download Comfy-Org/z_image_turbo
+./build/las module install comfyui
+./build/las module setting comfyui Comfy-Org_z_image_turbo
+comfyui-las --listen 0.0.0.0 --port 8188
+```
+
+效果：安装并启动ComfyUI，并使用z_image_turbo模型。
+需要下载配套的[JSON文件](https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_z_image_turbo.json)
+

@@ -1,9 +1,11 @@
+'%s': '%s'
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表示自动分配线程）：'
 Check module installation status: 检查模块的安装状态。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动选择）'
 Detect hardware capabilities: 检测硬件功能
 Download a model: 下载一个模型。
 Download missing tokenizer/config files: 下载缺失的标记器（tokenizer）文件和配置文件。
+'Error: %v': 错误：%v
 Force removal without confirmation: 强制移除，无需确认。
 GPU layers for llama.cpp (-1 = auto): '`lama.cpp` 中的 GPU 层（-1 表示自动选择）'
 Generate the autocompletion script for bash: |-
@@ -327,6 +329,7 @@ Help about any command: 关于任何命令的帮助信息
 Host to bind llama.cpp server: 需要绑定 llama.cpp 服务器的主机
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
 Install a module: 安装一个模块。
+'Installing module: %s': 正在安装模块：%s
 List all available modules: 列出所有可用的模块。
 List available LLM providers: 以下是可用的大型语言模型（LLM）提供商列表：
 List downloaded models: 已下载的模型列表
@@ -338,9 +341,13 @@ Manage LLM providers: 管理大型语言模型（LLM）提供商
 Manage services: 管理服务
 Manage software modules: 管理软件模块
 Maximum number of results per source: 每个来源的最大结果数量
+Module %s purged successfully.: 模块 %s 已成功清除。
+Module %s uninstalled successfully.: 模块 %s 已成功卸载。
+'Module install failed: %s': 模块安装失败：%s
 Port to bind llama.cpp server: 用于将代码绑定到 llama.cpp 服务器的端口。
 Preferred interaction language: 首选的交互语言
 Purge a module: “Purge a module” 的意思是“删除或清除某个模块”。
+'Purging module: %s': 正在清理模块：%s
 Remove a downloaded model: 删除已下载的模型
 Run a local model: 运行一个本地模型。
 Run module-specific settings: 运行模块特定的设置
@@ -361,13 +368,18 @@ Translation model: 翻译模型
 Translation provider: 翻译服务提供商
 Translation timeout in seconds: 翻译超时时间（以秒为单位）
 Uninstall a module: 卸载一个模块
+'Uninstalling module: %s': 正在卸载模块：%s
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
 help for download: 关于下载的帮助信息
+help for install: 安装帮助
 help for list: 关于列表的帮助信息
+help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"
 help for run: 关于如何运行的帮助
 help for search: 搜索帮助
+help for uninstall: 关于卸载的帮助：
+'install step %s failed: %w': 安装步骤 %s 失败：%w
 vLLM GPU memory utilization (0-1, safetensors only): vLLM GPU内存利用率（0-1，仅包括安全传感器数据）
 vLLM max model length (safetensors only): vLLM的最大模型长度（仅限使用安全张量（safetensors））
 verbose output: 详细输出（verbose output）
