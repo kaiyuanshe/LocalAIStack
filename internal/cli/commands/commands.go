@@ -48,6 +48,21 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		},
 	}
 
+	updateCmd := &cobra.Command{
+		Use:   "update [module-name]",
+		Short: "Update a module",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.Printf("%s\n", i18n.T("Updating module: %s", args[0]))
+			if err := module.Update(args[0]); err != nil {
+				cmd.Printf("%s\n", i18n.T("Module update failed: %s", err))
+				return err
+			}
+			cmd.Printf("%s\n", i18n.T("Module %s updated successfully.", args[0]))
+			return nil
+		},
+	}
+
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall [module-name]",
 		Short: "Uninstall a module",
@@ -148,6 +163,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 	}
 
 	moduleCmd.AddCommand(installCmd)
+	moduleCmd.AddCommand(updateCmd)
 	moduleCmd.AddCommand(uninstallCmd)
 	moduleCmd.AddCommand(purgeCmd)
 	moduleCmd.AddCommand(listCmd)
@@ -360,6 +376,13 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			gpuLayers, _ := cmd.Flags().GetInt("n-gpu-layers")
 			host, _ := cmd.Flags().GetString("host")
 			port, _ := cmd.Flags().GetInt("port")
+			temperature, _ := cmd.Flags().GetFloat64("temperature")
+			topP, _ := cmd.Flags().GetFloat64("top-p")
+			topK, _ := cmd.Flags().GetInt("top-k")
+			minP, _ := cmd.Flags().GetFloat64("min-p")
+			presencePenalty, _ := cmd.Flags().GetFloat64("presence-penalty")
+			repeatPenalty, _ := cmd.Flags().GetFloat64("repeat-penalty")
+			chatTemplateKwargs, _ := cmd.Flags().GetString("chat-template-kwargs")
 			vllmMaxModelLen, _ := cmd.Flags().GetInt("vllm-max-model-len")
 			vllmGpuMemUtil, _ := cmd.Flags().GetFloat64("vllm-gpu-memory-utilization")
 			vllmTrustRemoteCode, _ := cmd.Flags().GetBool("vllm-trust-remote-code")
@@ -507,6 +530,21 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			if tensorSplit, _ := cmd.Flags().GetString("tensor-split"); tensorSplit != "" {
 				defaults.tensorSplit = tensorSplit
 			}
+			if temperature < 0 {
+				return fmt.Errorf("temperature must be >= 0")
+			}
+			if topP < 0 || topP > 1 {
+				return fmt.Errorf("top-p must be in [0, 1]")
+			}
+			if topK < 0 {
+				return fmt.Errorf("top-k must be >= 0")
+			}
+			if minP < 0 || minP > 1 {
+				return fmt.Errorf("min-p must be in [0, 1]")
+			}
+			if repeatPenalty < 0 {
+				return fmt.Errorf("repeat-penalty must be >= 0")
+			}
 
 			llamaPath, err := exec.LookPath("llama-server")
 			if err != nil {
@@ -520,9 +558,18 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				"--n-gpu-layers", strconv.Itoa(defaults.gpuLayers),
 				"--host", host,
 				"--port", strconv.Itoa(port),
+				"--temp", fmt.Sprintf("%.4g", temperature),
+				"--top-p", fmt.Sprintf("%.4g", topP),
+				"--top-k", strconv.Itoa(topK),
+				"--min-p", fmt.Sprintf("%.4g", minP),
+				"--presence-penalty", fmt.Sprintf("%.4g", presencePenalty),
+				"--repeat-penalty", fmt.Sprintf("%.4g", repeatPenalty),
 			}
 			if defaults.tensorSplit != "" {
 				argsList = append(argsList, "--tensor-split", defaults.tensorSplit)
+			}
+			if strings.TrimSpace(chatTemplateKwargs) != "" {
+				argsList = append(argsList, "--chat-template-kwargs", chatTemplateKwargs)
 			}
 
 			cmd.Printf("Starting llama.cpp server for %s\n", filepath.Base(modelPath))
@@ -544,6 +591,13 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().String("tensor-split", "", "Tensor split for multi-GPU (comma-separated percentages)")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
+	runCmd.Flags().Float64("temperature", 0.7, "Sampling temperature for llama.cpp")
+	runCmd.Flags().Float64("top-p", 0.8, "Top-p nucleus sampling for llama.cpp (0-1)")
+	runCmd.Flags().Int("top-k", 20, "Top-k sampling for llama.cpp (0 disables)")
+	runCmd.Flags().Float64("min-p", 0.0, "Min-p sampling for llama.cpp (0-1)")
+	runCmd.Flags().Float64("presence-penalty", 1.5, "Presence penalty for llama.cpp")
+	runCmd.Flags().Float64("repeat-penalty", 1.0, "Repeat penalty for llama.cpp")
+	runCmd.Flags().String("chat-template-kwargs", "", "JSON object passed to llama.cpp --chat-template-kwargs (e.g. '{\"enable_thinking\":false}')")
 	runCmd.Flags().Int("vllm-max-model-len", 0, "vLLM max model length (safetensors only)")
 	runCmd.Flags().Float64("vllm-gpu-memory-utilization", 0, "vLLM GPU memory utilization (0-1, safetensors only)")
 	runCmd.Flags().Bool("vllm-trust-remote-code", false, "Allow vLLM to execute model custom code from repo (safetensors only)")

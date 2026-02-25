@@ -129,6 +129,9 @@ verification:
 rollback:
   script: scripts/rollback.sh
 
+update:
+  script: scripts/update.sh
+
 uninstall:
   script: scripts/uninstall.sh
 

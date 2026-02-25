@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="https://github.com/ggerganov/llama.cpp.git"
+repo_url="https://github.com/ggml-org/llama.cpp.git"
 source_dir="/usr/local/llama.cpp"
 
 if command -v sudo >/dev/null 2>&1 && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then

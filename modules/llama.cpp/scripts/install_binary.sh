@@ -50,7 +50,7 @@ esac
 
 release_json="$tmp_dir/release.json"
 curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors \
-  "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" \
+  "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" \
   -o "$release_json"
 
 asset_json=$(RELEASE_JSON="$release_json" python3 - <<'PY'
@@ -87,11 +87,11 @@ PY
 
 if [[ -z "$asset_url" ]]; then
   release_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
-    "https://github.com/ggerganov/llama.cpp/releases/latest")
+    "https://github.com/ggml-org/llama.cpp/releases/latest")
   release_tag="${release_url##*/}"
   if [[ -n "$release_tag" && "$release_tag" != "latest" ]]; then
     for pattern in "${patterns[@]}"; do
-      candidate="https://github.com/ggerganov/llama.cpp/releases/download/${release_tag}/llama-${release_tag}-${pattern}"
+      candidate="https://github.com/ggml-org/llama.cpp/releases/download/${release_tag}/llama-${release_tag}-${pattern}"
       if curl -fsI "$candidate" >/dev/null 2>&1; then
         asset_url="$candidate"
         break
