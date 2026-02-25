@@ -18,6 +18,33 @@ else
   SUDO=""
 fi
 
+is_truthy() {
+  local value
+  value="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "$value" == "1" || "$value" == "on" || "$value" == "true" || "$value" == "yes" ]]
+}
+
+is_falsy() {
+  local value
+  value="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "$value" == "0" || "$value" == "off" || "$value" == "false" || "$value" == "no" ]]
+}
+
+has_nvidia_gpu() {
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+cuda_requested=0
+if [[ -n "${LLAMA_CUDA:-}" ]]; then
+  if is_truthy "${LLAMA_CUDA}"; then
+    cuda_requested=1
+  elif is_falsy "${LLAMA_CUDA}"; then
+    cuda_requested=0
+  fi
+elif [[ "$mode" == "source" ]] && has_nvidia_gpu; then
+  cuda_requested=1
+fi
+
 base_packages=(curl ca-certificates tar python3)
 build_packages=()
 cuda_host_packages=()
@@ -26,7 +53,7 @@ if [[ "$mode" == "source" ]]; then
   build_packages=(git cmake make gcc g++)
 fi
 
-if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
+if [[ "$cuda_requested" -eq 1 ]]; then
   if [[ "$mode" == "source" ]]; then
     cuda_host_packages=(gcc-10 g++-10)
   fi
