@@ -132,7 +132,7 @@ func Install(name string) (retErr error) {
 		if retErr == nil {
 			return
 		}
-		failure.RecordBestEffort(failure.Event{
+		classification, advice, logPath := failure.RecordWithResultBestEffort(failure.Event{
 			Phase:    inferInstallFailurePhase(retErr),
 			Module:   normalized,
 			Model:    plannerModel,
@@ -143,6 +143,10 @@ func Install(name string) (retErr error) {
 				"entry": "module.Install",
 			},
 		})
+		if failure.FailureDebugEnabled() {
+			fmt.Printf("Failure handling: phase=%s category=%s retryable=%t log=%s suggestion=%s\n",
+				inferInstallFailurePhase(retErr), classification.Category, advice.Retryable, fallbackString(logPath, "n/a"), advice.Suggestion)
+		}
 	}()
 	moduleDir, err := resolveModuleDir(normalized)
 	if err != nil {
@@ -216,6 +220,13 @@ func Install(name string) (retErr error) {
 		}
 	}
 	return nil
+}
+
+func fallbackString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 func inferInstallFailurePhase(err error) string {

@@ -5,3 +5,7 @@ import "github.com/zhuangbiaowei/LocalAIStack/internal/failure"
 func recordFailureBestEffort(event failure.Event) {
 	failure.RecordBestEffort(event)
 }
+
+func recordFailureWithResultBestEffort(event failure.Event) (failure.Classification, failure.Advice, string) {
+	return failure.RecordWithResultBestEffort(event)
+}

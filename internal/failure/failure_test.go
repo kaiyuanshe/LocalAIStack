@@ -148,3 +148,56 @@ func TestRecordBestEffortDefaultPath(t *testing.T) {
 		t.Fatalf("expected phase smart_run in record, got: %s", string(data))
 	}
 }
+
+func TestBuildAdvice(t *testing.T) {
+	rateLimit := BuildAdvice(Classification{Category: CategoryRateLimit})
+	if !rateLimit.Retryable || len(rateLimit.RetryDelays) == 0 {
+		t.Fatalf("expected retryable rate_limit advice, got: %+v", rateLimit)
+	}
+
+	auth := BuildAdvice(Classification{Category: CategoryAuth})
+	if auth.Retryable {
+		t.Fatalf("expected non-retryable auth advice by default, got: %+v", auth)
+	}
+	if !strings.Contains(strings.ToLower(auth.Suggestion), "api key") {
+		t.Fatalf("expected api key hint for auth advice, got: %+v", auth)
+	}
+}
+
+func TestRecordWithResultBestEffort(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	classification, advice, path := RecordWithResultBestEffort(Event{
+		Phase: PhaseConfigPlanner,
+		Error: "siliconflow request failed with status 429",
+	})
+
+	if classification.Category != CategoryRateLimit {
+		t.Fatalf("expected rate_limit, got: %+v", classification)
+	}
+	if !advice.Retryable || len(advice.RetryDelays) == 0 {
+		t.Fatalf("expected retryable advice, got: %+v", advice)
+	}
+	if strings.TrimSpace(path) == "" {
+		t.Fatalf("expected non-empty path")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("record path should exist: %v", err)
+	}
+}
+
+func TestFailureDebugEnabled(t *testing.T) {
+	t.Setenv(EnvFailureDebug, "1")
+	if !FailureDebugEnabled() {
+		t.Fatalf("expected debug enabled for value 1")
+	}
+	t.Setenv(EnvFailureDebug, "true")
+	if !FailureDebugEnabled() {
+		t.Fatalf("expected debug enabled for value true")
+	}
+	t.Setenv(EnvFailureDebug, "off")
+	if FailureDebugEnabled() {
+		t.Fatalf("expected debug disabled for value off")
+	}
+}

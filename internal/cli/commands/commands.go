@@ -186,7 +186,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 				if retErr == nil {
 					return
 				}
-				recordFailureBestEffort(failure.Event{
+				cls, advice, logPath := recordFailureWithResultBestEffort(failure.Event{
 					Phase:    failure.PhaseConfigPlanner,
 					Module:   moduleName,
 					Model:    plannerModel,
@@ -199,6 +199,10 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 						"planner_strict": plannerStrict,
 					},
 				})
+				if failure.FailureDebugEnabled() {
+					cmd.Printf("Failure handling: phase=%s category=%s retryable=%t log=%s suggestion=%s\n",
+						failure.PhaseConfigPlanner, cls.Category, advice.Retryable, fallbackString(logPath, "n/a"), advice.Suggestion)
+				}
 			}()
 
 			baseInfoPath := configplanner.ResolveBaseInfoPath()
@@ -542,7 +546,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				if strings.Contains(message, "smart-run") {
 					phase = failure.PhaseSmartRun
 				}
-				recordFailureBestEffort(failure.Event{
+				cls, advice, logPath := recordFailureWithResultBestEffort(failure.Event{
 					Phase:    phase,
 					Model:    modelID,
 					Provider: plannerProvider,
@@ -556,6 +560,10 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 						"planner_model": plannerModel,
 					},
 				})
+				if failure.FailureDebugEnabled() {
+					cmd.Printf("Failure handling: phase=%s category=%s retryable=%t log=%s suggestion=%s\n",
+						phase, cls.Category, advice.Retryable, fallbackString(logPath, "n/a"), advice.Suggestion)
+				}
 			}()
 
 			var cfg *config.Config

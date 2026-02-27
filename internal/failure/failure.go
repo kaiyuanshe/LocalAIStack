@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const EnvFailureDebug = "LOCALAISTACK_FAILURE_DEBUG"
+
 const (
 	PhaseInstallPlanner = "install_planner"
 	PhaseConfigPlanner  = "config_planner"
@@ -58,6 +60,12 @@ type Recorder struct {
 	now     func() time.Time
 }
 
+type Advice struct {
+	Retryable   bool  `json:"retryable"`
+	RetryDelays []int `json:"retry_delays,omitempty"`
+	Suggestion  string `json:"suggestion"`
+}
+
 func NewRecorder(baseDir string) (*Recorder, error) {
 	dir := strings.TrimSpace(baseDir)
 	if dir == "" {
@@ -82,6 +90,24 @@ func RecordBestEffort(event Event) {
 		return
 	}
 	_, _ = recorder.Record(event)
+}
+
+func RecordWithResultBestEffort(event Event) (Classification, Advice, string) {
+	classification := event.Classification
+	if strings.TrimSpace(classification.Category) == "" {
+		classification = Classify(errors.New(event.Error))
+		event.Classification = classification
+	}
+	advice := BuildAdvice(classification)
+	recorder, err := NewRecorder("")
+	if err != nil {
+		return classification, advice, ""
+	}
+	path, err := recorder.Record(event)
+	if err != nil {
+		return classification, advice, ""
+	}
+	return classification, advice, path
 }
 
 func (r *Recorder) Record(event Event) (string, error) {
@@ -119,6 +145,45 @@ func (r *Recorder) Record(event Event) (string, error) {
 		return "", err
 	}
 	return target, nil
+}
+
+func FailureDebugEnabled() bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(EnvFailureDebug)))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func BuildAdvice(classification Classification) Advice {
+	advice := Advice{
+		Retryable: classification.Retryable,
+	}
+	switch classification.Category {
+	case CategoryAuth:
+		advice.Suggestion = "Check provider API key, base URL, and model permission."
+	case CategoryRateLimit:
+		advice.RetryDelays = []int{2, 5, 10}
+		advice.Suggestion = "Rate limited by provider. Retry later or reduce request frequency."
+	case CategoryProvider:
+		advice.RetryDelays = []int{2, 5, 10}
+		advice.Suggestion = "Provider unavailable. Retry with backoff or switch provider."
+	case CategoryTimeout:
+		advice.RetryDelays = []int{1, 3, 5}
+		advice.Suggestion = "Request timed out. Retry and consider increasing timeout."
+	case CategoryNetwork:
+		advice.RetryDelays = []int{1, 3, 5}
+		advice.Suggestion = "Network error. Check connectivity and DNS, then retry."
+	case CategoryCommandExit:
+		advice.Suggestion = "Underlying command failed. Check module/runtime logs and dependencies."
+	case CategoryInvalidOutput:
+		advice.Suggestion = "Planner output invalid. Enable planner debug and verify prompt/schema."
+	case CategoryNotFound:
+		advice.Suggestion = "Target not found. Verify module/model id and local install state."
+	default:
+		advice.Suggestion = "Unknown failure. Enable debug flags and inspect logs."
+	}
+	if len(advice.RetryDelays) > 0 {
+		advice.Retryable = true
+	}
+	return advice
 }
 
 func Classify(err error) Classification {
