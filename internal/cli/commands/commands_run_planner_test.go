@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -196,6 +197,29 @@ func TestSuggestAdviceWithStubProvider(t *testing.T) {
 	}
 	if vllmAdvice.MaxModelLen == nil || *vllmAdvice.MaxModelLen != 6144 {
 		t.Fatalf("expected vllm advice max_model_len=6144, got %+v", vllmAdvice.MaxModelLen)
+	}
+}
+
+func TestEvaluateSmartRunOutcome(t *testing.T) {
+	source, reason, fatal := evaluateSmartRunOutcome(false, nil, false)
+	if source != "static" || reason == "" || fatal != nil {
+		t.Fatalf("unexpected disabled outcome: source=%q reason=%q fatal=%v", source, reason, fatal)
+	}
+
+	source, reason, fatal = evaluateSmartRunOutcome(true, nil, false)
+	if source != "llm" || reason == "" || fatal != nil {
+		t.Fatalf("unexpected success outcome: source=%q reason=%q fatal=%v", source, reason, fatal)
+	}
+
+	runErr := errors.New("planner failed")
+	source, reason, fatal = evaluateSmartRunOutcome(true, runErr, false)
+	if source != "static" || !strings.Contains(reason, "planner failed") || fatal != nil {
+		t.Fatalf("unexpected fallback outcome: source=%q reason=%q fatal=%v", source, reason, fatal)
+	}
+
+	source, reason, fatal = evaluateSmartRunOutcome(true, runErr, true)
+	if source != "static" || !strings.Contains(reason, "planner failed") || fatal == nil {
+		t.Fatalf("unexpected strict outcome: source=%q reason=%q fatal=%v", source, reason, fatal)
 	}
 }
 

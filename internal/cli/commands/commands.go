@@ -382,6 +382,8 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			ubatchSize, _ := cmd.Flags().GetInt("ubatch-size")
 			autoBatch, _ := cmd.Flags().GetBool("auto-batch")
 			smartRun, _ := cmd.Flags().GetBool("smart-run")
+			smartRunDebug, _ := cmd.Flags().GetBool("smart-run-debug")
+			smartRunStrict, _ := cmd.Flags().GetBool("smart-run-strict")
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			host, _ := cmd.Flags().GetString("host")
 			port, _ := cmd.Flags().GetInt("port")
@@ -413,10 +415,16 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			vllmTrustRemoteCodeChanged := cmd.Flags().Changed("vllm-trust-remote-code")
 
 			var cfg *config.Config
+			var cfgLoadErr error
 			if smartRun {
 				if loaded, err := config.LoadConfig(); err == nil {
 					cfg = loaded
+				} else {
+					cfgLoadErr = err
 				}
+			}
+			if smartRunStrict && !smartRun {
+				return fmt.Errorf("smart-run-strict requires --smart-run")
 			}
 
 			mgr := createModelManager()
@@ -506,6 +514,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
 				}
 				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
+				vllmSmartErr := error(nil)
 				if smartRun && cfg != nil {
 					advice, err := suggestVLLMAdvice(cmd.Context(), cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode)
 					if err == nil {
@@ -514,7 +523,18 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 							"gpu_memory_utilization": vllmGpuMemUtilChanged,
 							"trust_remote_code":      vllmTrustRemoteCodeChanged,
 						})
+					} else {
+						vllmSmartErr = err
 					}
+				} else if smartRun && cfgLoadErr != nil {
+					vllmSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
+				}
+				vllmSmartSource, vllmSmartReason, vllmSmartFatal := evaluateSmartRunOutcome(smartRun, vllmSmartErr, smartRunStrict)
+				if smartRunDebug {
+					printSmartRunDebug(cmd, "vllm", vllmSmartSource, vllmSmartReason)
+				}
+				if vllmSmartFatal != nil {
+					return vllmSmartFatal
 				}
 				cmd.Printf("Starting vLLM server for %s\n", modelID)
 				args := buildVLLMServeArgs(modelRef, host, port, vllmDefaults, enableTrustRemoteCode)
@@ -576,6 +596,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				PresencePenalty: presencePenalty,
 				RepeatPenalty:   repeatPenalty,
 			}
+			llamaSmartErr := error(nil)
 			if smartRun && cfg != nil {
 				advice, err := suggestLlamaAdvice(cmd.Context(), cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
 					BatchSize:  resolvedBatch,
@@ -597,7 +618,18 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 						"repeat_penalty":       repeatPenaltyChanged,
 						"chat_template_kwargs": chatTemplateKwargsChanged,
 					})
+				} else {
+					llamaSmartErr = err
 				}
+			} else if smartRun && cfgLoadErr != nil {
+				llamaSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
+			}
+			llamaSmartSource, llamaSmartReason, llamaSmartFatal := evaluateSmartRunOutcome(smartRun, llamaSmartErr, smartRunStrict)
+			if smartRunDebug {
+				printSmartRunDebug(cmd, "llama.cpp", llamaSmartSource, llamaSmartReason)
+			}
+			if llamaSmartFatal != nil {
+				return llamaSmartFatal
 			}
 			if temperature < 0 {
 				return fmt.Errorf("temperature must be >= 0")
@@ -671,6 +703,8 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("ubatch-size", 0, "Micro batch size for llama.cpp (0 = auto)")
 	runCmd.Flags().Bool("auto-batch", false, "Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model")
 	runCmd.Flags().Bool("smart-run", false, "Use LLM to refine runtime parameters from hardware and model context")
+	runCmd.Flags().Bool("smart-run-debug", false, "Print smart-run planner source and fallback reason")
+	runCmd.Flags().Bool("smart-run-strict", false, "Fail model run if smart-run cannot obtain valid LLM advice")
 	runCmd.Flags().Bool("dry-run", false, "Print the final runtime command without launching the process")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
@@ -1368,6 +1402,26 @@ func printDryRunCommand(cmd *cobra.Command, binary string, args []string, extraE
 	if len(extraEnv) > 0 {
 		cmd.Printf("Dry run env: %s\n", strings.Join(extraEnv, " "))
 	}
+}
+
+func evaluateSmartRunOutcome(enabled bool, plannerErr error, strict bool) (source, reason string, fatal error) {
+	if !enabled {
+		return "static", "smart-run disabled", nil
+	}
+	if plannerErr == nil {
+		return "llm", "LLM advice applied", nil
+	}
+	if strict {
+		return "static", plannerErr.Error(), fmt.Errorf("smart-run strict mode: %w", plannerErr)
+	}
+	return "static", plannerErr.Error(), nil
+}
+
+func printSmartRunDebug(cmd *cobra.Command, runtimeName, source, reason string) {
+	if strings.TrimSpace(reason) == "" {
+		reason = "n/a"
+	}
+	cmd.Printf("Smart run planner (%s): source=%s reason=%s\n", runtimeName, source, reason)
 }
 
 func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelPath string, info system.BaseInfoSummary, defaults llamaRunDefaults, batch llamaBatchParams, sampling llamaSamplingParams, chatTemplateKwargs string) (llamaPlannerAdvice, error) {
