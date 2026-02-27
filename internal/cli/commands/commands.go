@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/configplanner"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/modelmanager"
@@ -166,6 +167,90 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		},
 	}
 
+	configPlanCmd := &cobra.Command{
+		Use:   "config-plan [module-name]",
+		Short: "Generate module configuration plan",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			moduleName := args[0]
+			modelID, _ := cmd.Flags().GetString("model")
+			apply, _ := cmd.Flags().GetBool("apply")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			plannerDebug, _ := cmd.Flags().GetBool("planner-debug")
+			plannerStrict, _ := cmd.Flags().GetBool("planner-strict")
+
+			baseInfoPath := configplanner.ResolveBaseInfoPath()
+			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
+			if err != nil {
+				return fmt.Errorf("failed to read base info at %s (try `./build/las system init`): %w", baseInfoPath, err)
+			}
+
+			plan, err := configplanner.BuildStaticPlan(moduleName, modelID, baseInfo)
+			if err != nil {
+				source := "static"
+				reason := err.Error()
+				if plannerDebug {
+					cmd.Printf("Config planner: source=%s reason=%s\n", source, reason)
+				}
+				if plannerStrict {
+					return fmt.Errorf("config planner strict mode: %w", err)
+				}
+				return err
+			}
+			source := "static"
+			reason := "static planner applied"
+
+			if cfg, cfgErr := config.LoadConfig(); cfgErr == nil {
+				if strings.TrimSpace(cfg.LLM.Provider) != "" && strings.TrimSpace(cfg.LLM.Model) != "" {
+					if llmPlan, llmErr := configplanner.BuildLLMPlan(cmd.Context(), plan, baseInfo, cfg.LLM); llmErr == nil {
+						plan = llmPlan
+						source = "llm"
+						reason = "llm planner applied"
+					} else {
+						source = "static"
+						reason = llmErr.Error()
+						if plannerStrict {
+							if plannerDebug {
+								cmd.Printf("Config planner: source=%s reason=%s\n", source, reason)
+							}
+							return fmt.Errorf("config planner strict mode: %w", llmErr)
+						}
+					}
+				}
+			} else if plannerStrict {
+				if plannerDebug {
+					cmd.Printf("Config planner: source=static reason=%s\n", cfgErr.Error())
+				}
+				return fmt.Errorf("config planner strict mode: %w", cfgErr)
+			}
+
+			if plannerDebug {
+				cmd.Printf("Config planner: source=%s reason=%s\n", source, reason)
+			}
+
+			payload, err := json.MarshalIndent(plan, "", "  ")
+			if err != nil {
+				return err
+			}
+			cmd.Printf("%s\n", payload)
+
+			if dryRun || !apply {
+				return nil
+			}
+			path, err := configplanner.ApplyPlan(plan)
+			if err != nil {
+				return err
+			}
+			cmd.Printf("Config plan saved to %s\n", path)
+			return nil
+		},
+	}
+	configPlanCmd.Flags().String("model", "", "Optional model id to include in planning context")
+	configPlanCmd.Flags().Bool("apply", false, "Persist config plan to ~/.localaistack/config-plans/<module>.json")
+	configPlanCmd.Flags().Bool("dry-run", false, "Print generated plan without saving")
+	configPlanCmd.Flags().Bool("planner-debug", false, "Print planner source and reason")
+	configPlanCmd.Flags().Bool("planner-strict", false, "Fail immediately when planner cannot generate a valid plan")
+
 	moduleCmd.AddCommand(installCmd)
 	moduleCmd.AddCommand(updateCmd)
 	moduleCmd.AddCommand(uninstallCmd)
@@ -173,6 +258,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 	moduleCmd.AddCommand(listCmd)
 	moduleCmd.AddCommand(checkCmd)
 	moduleCmd.AddCommand(settingCmd)
+	moduleCmd.AddCommand(configPlanCmd)
 	rootCmd.AddCommand(moduleCmd)
 }
 
