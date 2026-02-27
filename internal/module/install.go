@@ -77,10 +77,14 @@ type llmInstallPlan struct {
 }
 
 type installPlannerInput struct {
-	ModuleName     string                   `json:"module_name"`
-	CurrentMode    string                   `json:"current_mode"`
-	AvailableModes []string                 `json:"available_modes"`
-	Steps          []installPlannerStepHint `json:"steps"`
+	ModuleName         string                        `json:"module_name"`
+	CurrentMode        string                        `json:"current_mode"`
+	AvailableModes     []string                      `json:"available_modes"`
+	CurrentModeSteps   []installPlannerStepHint      `json:"current_mode_steps"`
+	CurrentModeSummary installPlannerCategorySummary `json:"current_mode_summary"`
+	ModeCatalog        []installPlannerModeHint      `json:"mode_catalog"`
+	Preconditions      []installPlannerConditionHint `json:"preconditions,omitempty"`
+	PlannerVersion     string                        `json:"planner_version"`
 }
 
 type installPlannerStepHint struct {
@@ -89,6 +93,31 @@ type installPlannerStepHint struct {
 	Tool     string `json:"tool"`
 	Intent   string `json:"intent,omitempty"`
 	Command  string `json:"command,omitempty"`
+}
+
+type installPlannerCategorySummary struct {
+	Dependency    int `json:"dependency"`
+	Download      int `json:"download"`
+	BinaryInstall int `json:"binary_install"`
+	SourceBuild   int `json:"source_build"`
+	Configure     int `json:"configure"`
+	Service       int `json:"service"`
+	Verify        int `json:"verify"`
+}
+
+type installPlannerModeHint struct {
+	Mode     string                        `json:"mode"`
+	Steps    []installPlannerStepHint      `json:"steps"`
+	Summary  installPlannerCategorySummary `json:"summary"`
+	StepIDs  []string                      `json:"step_ids"`
+	StepSize int                           `json:"step_size"`
+}
+
+type installPlannerConditionHint struct {
+	ID      string `json:"id"`
+	Intent  string `json:"intent,omitempty"`
+	Tool    string `json:"tool,omitempty"`
+	Command string `json:"command,omitempty"`
 }
 
 func Install(name string) error {
@@ -126,15 +155,38 @@ func Install(name string) error {
 	}
 
 	planSteps := steps
+	plannerSource := "static"
+	plannerErr := ""
+	plannerMode := mode
 	if cfg, cfgErr := config.LoadConfig(); cfgErr == nil {
 		if llmPlan, err := interpretInstallPlanWithLLM(cfg.LLM, normalized, spec, mode, steps); err == nil {
-			_, resolvedSteps, applyErr := applyLLMInstallPlan(spec, mode, steps, env, llmPlan)
+			resolvedMode, resolvedSteps, applyErr := applyLLMInstallPlan(spec, mode, steps, env, llmPlan)
 			if applyErr == nil {
+				plannerMode = resolvedMode
 				planSteps = resolvedSteps
+				plannerSource = "llm"
+			} else {
+				plannerErr = applyErr.Error()
 			}
+		} else {
+			plannerErr = err.Error()
 		}
+	} else {
+		plannerErr = cfgErr.Error()
 	}
 	planSteps = ensureServiceSteps(planSteps, steps)
+	if isInstallPlannerDebugEnabled() {
+		fmt.Printf("Install planner: source=%s mode=%s steps=%s\n", plannerSource, plannerMode, strings.Join(stepIDs(planSteps), ","))
+		if strings.TrimSpace(plannerErr) != "" {
+			fmt.Printf("Install planner fallback reason: %s\n", plannerErr)
+		}
+	}
+	if isInstallPlannerStrictEnabled() && plannerSource != "llm" {
+		if strings.TrimSpace(plannerErr) == "" {
+			plannerErr = "LLM install planner did not produce a valid plan"
+		}
+		return i18n.Errorf("install planner strict mode: %s", plannerErr)
+	}
 
 	vars := flattenDefaults(spec.Configuration.Defaults)
 	for _, step := range planSteps {
@@ -232,9 +284,10 @@ Required JSON schema:
 {"mode":"<mode>","steps":["<step-id>"],"reason":"<short reason>","risk_level":"low|medium|high","fallback_hint":"<optional>"}
 Rules:
 - mode must be one of available_modes.
-- steps must only contain IDs listed in steps.
+- steps must only contain IDs listed for that selected mode.
 - preserve service-related steps when relevant.
 - prefer safe, idempotent execution.
+- prioritize complete install path if applicable: dependency -> download -> binary_install or source_build -> configure -> verify.
 Planner input:
 %s`, string(inputPayload))
 
@@ -262,12 +315,27 @@ func parseLLMInstallPlan(text string) (llmInstallPlan, error) {
 		return llmInstallPlan{}, i18n.Errorf("LLM response did not include JSON")
 	}
 
-	var plan llmInstallPlan
-	if err := json.Unmarshal([]byte(payload), &plan); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(payload), &raw); err != nil {
 		return llmInstallPlan{}, err
 	}
+
+	var plan llmInstallPlan
+	_ = json.Unmarshal(raw["mode"], &plan.Mode)
+	if err := json.Unmarshal(raw["steps"], &plan.Steps); err != nil {
+		var selected []string
+		if aliasErr := json.Unmarshal(raw["selected_steps"], &selected); aliasErr == nil {
+			plan.Steps = selected
+		} else {
+			return llmInstallPlan{}, err
+		}
+	}
+	_ = json.Unmarshal(raw["reason"], &plan.Reason)
+	_ = json.Unmarshal(raw["risk_level"], &plan.RiskLevel)
+	_ = json.Unmarshal(raw["fallback_hint"], &plan.FallbackHint)
 	plan.Mode = strings.TrimSpace(plan.Mode)
 	plan.Steps = dedupeStepIDs(plan.Steps)
+	plan.RiskLevel = normalizeRiskLevel(plan.RiskLevel)
 	return plan, nil
 }
 
@@ -284,10 +352,14 @@ func buildInstallPlannerInput(moduleName string, spec moduleInstallSpec, mode st
 		})
 	}
 	return installPlannerInput{
-		ModuleName:     moduleName,
-		CurrentMode:    mode,
-		AvailableModes: availableModes,
-		Steps:          hints,
+		ModuleName:         moduleName,
+		CurrentMode:        mode,
+		AvailableModes:     availableModes,
+		CurrentModeSteps:   hints,
+		CurrentModeSummary: summarizePlannerStepHints(hints),
+		ModeCatalog:        buildInstallPlannerModeCatalog(spec),
+		Preconditions:      buildPlannerPreconditionHints(spec.Preconditions),
+		PlannerVersion:     "p1.1",
 	}
 }
 
@@ -313,6 +385,74 @@ func collectAvailableInstallModes(spec moduleInstallSpec) []string {
 	return modes
 }
 
+func buildInstallPlannerModeCatalog(spec moduleInstallSpec) []installPlannerModeHint {
+	modes := collectAvailableInstallModes(spec)
+	catalog := make([]installPlannerModeHint, 0, len(modes))
+	for _, mode := range modes {
+		modeSteps := spec.Install[mode]
+		hints := make([]installPlannerStepHint, 0, len(modeSteps))
+		stepIDs := make([]string, 0, len(modeSteps))
+		for _, step := range modeSteps {
+			hint := installPlannerStepHint{
+				ID:       strings.TrimSpace(step.ID),
+				Category: classifyInstallStep(step),
+				Tool:     strings.TrimSpace(step.Tool),
+				Intent:   strings.TrimSpace(step.Intent),
+				Command:  strings.TrimSpace(step.Command),
+			}
+			hints = append(hints, hint)
+			stepIDs = append(stepIDs, hint.ID)
+		}
+		catalog = append(catalog, installPlannerModeHint{
+			Mode:     mode,
+			Steps:    hints,
+			Summary:  summarizePlannerStepHints(hints),
+			StepIDs:  stepIDs,
+			StepSize: len(stepIDs),
+		})
+	}
+	return catalog
+}
+
+func summarizePlannerStepHints(steps []installPlannerStepHint) installPlannerCategorySummary {
+	summary := installPlannerCategorySummary{}
+	for _, step := range steps {
+		switch step.Category {
+		case "dependency":
+			summary.Dependency++
+		case "download":
+			summary.Download++
+		case "binary_install":
+			summary.BinaryInstall++
+		case "source_build":
+			summary.SourceBuild++
+		case "service":
+			summary.Service++
+		case "verify":
+			summary.Verify++
+		default:
+			summary.Configure++
+		}
+	}
+	return summary
+}
+
+func buildPlannerPreconditionHints(preconditions []installPrecondition) []installPlannerConditionHint {
+	if len(preconditions) == 0 {
+		return nil
+	}
+	hints := make([]installPlannerConditionHint, 0, len(preconditions))
+	for _, pre := range preconditions {
+		hints = append(hints, installPlannerConditionHint{
+			ID:      strings.TrimSpace(pre.ID),
+			Intent:  strings.TrimSpace(pre.Intent),
+			Tool:    strings.TrimSpace(pre.Tool),
+			Command: strings.TrimSpace(pre.Command),
+		})
+	}
+	return hints
+}
+
 func classifyInstallStep(step installStep) string {
 	if isServiceStep(step) {
 		return "service"
@@ -327,31 +467,54 @@ func classifyInstallStep(step installStep) string {
 		strings.Contains(combined, "apt install"),
 		strings.Contains(combined, "yum install"),
 		strings.Contains(combined, "dnf install"),
+		strings.Contains(combined, "apk add"),
 		strings.Contains(combined, "pip install"),
 		strings.Contains(combined, "uv pip install"),
+		strings.Contains(combined, "npm install"),
+		strings.Contains(combined, "pnpm install"),
+		strings.Contains(combined, "brew install"),
+		strings.Contains(combined, "pacman -s"),
 		strings.Contains(combined, "install deps"),
 		strings.Contains(combined, "dependency"):
 		return "dependency"
 	case strings.Contains(combined, "wget "),
 		strings.Contains(combined, "curl "),
 		strings.Contains(combined, "git clone"),
+		strings.Contains(combined, "git fetch"),
+		strings.Contains(combined, "gh release download"),
+		strings.Contains(combined, "aria2c"),
+		strings.Contains(combined, "rsync"),
 		strings.Contains(combined, "hf download"),
 		strings.Contains(combined, "ollama pull"),
+		strings.Contains(combined, "modelscope download"),
 		strings.Contains(combined, "download"):
 		return "download"
 	case strings.Contains(combined, "cmake"),
 		strings.Contains(combined, "make "),
 		strings.Contains(combined, "go build"),
 		strings.Contains(combined, "cargo build"),
+		strings.Contains(combined, "cargo install"),
+		strings.Contains(combined, "python -m build"),
 		strings.Contains(combined, "python setup.py"),
+		strings.Contains(combined, "meson compile"),
+		strings.Contains(combined, "ninja"),
 		strings.Contains(combined, "source install"),
 		strings.Contains(combined, "install source"),
 		strings.Contains(combined, "source"):
 		return "source_build"
 	case strings.Contains(combined, "binary"),
+		strings.Contains(combined, ".deb"),
+		strings.Contains(combined, ".rpm"),
+		strings.Contains(combined, "dpkg -i"),
+		strings.Contains(combined, "rpm -i"),
 		strings.Contains(combined, "install_binary"),
 		strings.Contains(combined, "install binary"):
 		return "binary_install"
+	case strings.Contains(combined, "verify"),
+		strings.Contains(combined, "health"),
+		strings.Contains(combined, "check "),
+		strings.Contains(combined, "is-active"):
+		return "verify"
 	default:
 		return "configure"
 	}
@@ -428,6 +591,48 @@ func dedupeStepIDs(ids []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func normalizeRiskLevel(risk string) string {
+	switch strings.ToLower(strings.TrimSpace(risk)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(risk))
+	default:
+		return "medium"
+	}
+}
+
+func stepIDs(steps []installStep) []string {
+	if len(steps) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(steps))
+	for _, step := range steps {
+		id := strings.TrimSpace(step.ID)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func isInstallPlannerDebugEnabled() bool {
+	return isTruthyEnv("LOCALAISTACK_INSTALL_PLANNER_DEBUG")
+}
+
+func isInstallPlannerStrictEnabled() bool {
+	return isTruthyEnv("LOCALAISTACK_INSTALL_PLANNER_STRICT")
+}
+
+func isTruthyEnv(key string) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	switch value {
+	case "1", "true", "yes", "on", "y":
+		return true
+	default:
+		return false
+	}
 }
 
 func extractFirstJSONObject(text string) string {
