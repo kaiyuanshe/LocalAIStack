@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/configplanner"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/failure"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/modelmanager"
@@ -171,7 +172,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 		Use:   "config-plan [module-name]",
 		Short: "Generate module configuration plan",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (retErr error) {
 			moduleName := args[0]
 			modelID, _ := cmd.Flags().GetString("model")
 			apply, _ := cmd.Flags().GetBool("apply")
@@ -179,6 +180,26 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 			plannerDebug, _ := cmd.Flags().GetBool("planner-debug")
 			plannerStrict, _ := cmd.Flags().GetBool("planner-strict")
 			outputFormat, _ := cmd.Flags().GetString("output")
+			plannerProvider := ""
+			plannerModel := ""
+			defer func() {
+				if retErr == nil {
+					return
+				}
+				recordFailureBestEffort(failure.Event{
+					Phase:    failure.PhaseConfigPlanner,
+					Module:   moduleName,
+					Model:    plannerModel,
+					Provider: plannerProvider,
+					Error:    retErr.Error(),
+					Message:  "module config-plan failed",
+					Context: map[string]any{
+						"apply":          apply,
+						"dry_run":        dryRun,
+						"planner_strict": plannerStrict,
+					},
+				})
+			}()
 
 			baseInfoPath := configplanner.ResolveBaseInfoPath()
 			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
@@ -202,6 +223,8 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 			reason := "static planner applied"
 
 			if cfg, cfgErr := config.LoadConfig(); cfgErr == nil {
+				plannerProvider = strings.TrimSpace(cfg.LLM.Provider)
+				plannerModel = strings.TrimSpace(cfg.LLM.Model)
 				if strings.TrimSpace(cfg.LLM.Provider) != "" && strings.TrimSpace(cfg.LLM.Model) != "" {
 					if llmPlan, llmErr := configplanner.BuildLLMPlan(cmd.Context(), plan, baseInfo, cfg.LLM); llmErr == nil {
 						plan = llmPlan
@@ -466,7 +489,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 		Use:   "run [model-id]",
 		Short: "Run a local model",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (retErr error) {
 			modelID := args[0]
 			source, _ := cmd.Flags().GetString("source")
 			selectedFile, _ := cmd.Flags().GetString("file")
@@ -508,12 +531,40 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			vllmMaxModelLenChanged := cmd.Flags().Changed("vllm-max-model-len")
 			vllmGpuMemUtilChanged := cmd.Flags().Changed("vllm-gpu-memory-utilization")
 			vllmTrustRemoteCodeChanged := cmd.Flags().Changed("vllm-trust-remote-code")
+			plannerProvider := ""
+			plannerModel := ""
+			defer func() {
+				if retErr == nil {
+					return
+				}
+				phase := failure.PhaseModelRun
+				message := strings.ToLower(strings.TrimSpace(retErr.Error()))
+				if strings.Contains(message, "smart-run") {
+					phase = failure.PhaseSmartRun
+				}
+				recordFailureBestEffort(failure.Event{
+					Phase:    phase,
+					Model:    modelID,
+					Provider: plannerProvider,
+					Error:    retErr.Error(),
+					Message:  "model run failed",
+					Context: map[string]any{
+						"source_flag": source,
+						"smart_run":   smartRun,
+						"strict":      smartRunStrict,
+						"dry_run":     dryRun,
+						"planner_model": plannerModel,
+					},
+				})
+			}()
 
 			var cfg *config.Config
 			var cfgLoadErr error
 			if smartRun {
 				if loaded, err := config.LoadConfig(); err == nil {
 					cfg = loaded
+					plannerProvider = strings.TrimSpace(cfg.LLM.Provider)
+					plannerModel = strings.TrimSpace(cfg.LLM.Model)
 				} else {
 					cfgLoadErr = err
 				}

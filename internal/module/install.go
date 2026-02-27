@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/failure"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
@@ -120,11 +121,29 @@ type installPlannerConditionHint struct {
 	Command string `json:"command,omitempty"`
 }
 
-func Install(name string) error {
+func Install(name string) (retErr error) {
 	normalized := strings.ToLower(strings.TrimSpace(name))
 	if normalized == "" {
 		return i18n.Errorf("module name is required")
 	}
+	plannerProvider := ""
+	plannerModel := ""
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		failure.RecordBestEffort(failure.Event{
+			Phase:    inferInstallFailurePhase(retErr),
+			Module:   normalized,
+			Model:    plannerModel,
+			Provider: plannerProvider,
+			Error:    retErr.Error(),
+			Message:  "module install failed",
+			Context: map[string]any{
+				"entry": "module.Install",
+			},
+		})
+	}()
 	moduleDir, err := resolveModuleDir(normalized)
 	if err != nil {
 		return err
@@ -159,6 +178,8 @@ func Install(name string) error {
 	plannerErr := ""
 	plannerMode := mode
 	if cfg, cfgErr := config.LoadConfig(); cfgErr == nil {
+		plannerProvider = strings.TrimSpace(cfg.LLM.Provider)
+		plannerModel = strings.TrimSpace(cfg.LLM.Model)
 		if llmPlan, err := interpretInstallPlanWithLLM(cfg.LLM, normalized, spec, mode, steps); err == nil {
 			resolvedMode, resolvedSteps, applyErr := applyLLMInstallPlan(spec, mode, steps, env, llmPlan)
 			if applyErr == nil {
@@ -195,6 +216,17 @@ func Install(name string) error {
 		}
 	}
 	return nil
+}
+
+func inferInstallFailurePhase(err error) string {
+	if err == nil {
+		return failure.PhaseModuleInstall
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	if strings.Contains(message, "install planner") {
+		return failure.PhaseInstallPlanner
+	}
+	return failure.PhaseModuleInstall
 }
 
 func runPreconditions(preconditions []installPrecondition, moduleDir string) error {
