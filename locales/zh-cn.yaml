@@ -1,4 +1,11 @@
 '%s': '%s'
+Allow vLLM to execute model custom code from repo (safetensors only): 允许 vLLM 从仓库中执行模型的自定义代码（仅限使用 safetensors）。
+Assistant API base URL: 助理 API 基础 URL
+Assistant model: 辅助模型
+Assistant provider: 助理服务提供商（Assistant Service Provider）
+Assistant timeout in seconds: 助手的超时时间（以秒为单位）
+Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model: 自动调整 llama.cpp 的参数（--batch-size 和 --ubatch-size），以适应硬件配置和模型特性。
+Batch size for llama.cpp (0 = auto): '`lama.cpp` 的批量处理大小（0 表示自动选择）'
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表示自动分配线程）：'
 Check module installation status: 检查模块的安装状态。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动选择）'
@@ -330,6 +337,7 @@ Host to bind llama.cpp server: 需要绑定 llama.cpp 服务器的主机
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
 Install a module: 安装一个模块。
 'Installing module: %s': 正在安装模块：%s
+JSON object passed to llama.cpp --chat-template-kwargs (e.g. '{"enable_thinking":false}'): '传递给 llama.cpp 的 JSON 对象（例如：`{"enable_thinking": false}`）'
 List all available modules: 列出所有可用的模块。
 List available LLM providers: 以下是可用的大型语言模型（LLM）提供商列表：
 List downloaded models: 已下载的模型列表
@@ -341,16 +349,22 @@ Manage LLM providers: 管理大型语言模型（LLM）提供商
 Manage services: 管理服务
 Manage software modules: 管理软件模块
 Maximum number of results per source: 每个来源的最大结果数量
+Micro batch size for llama.cpp (0 = auto): '`lama.cpp` 的微批次大小（0 表示自动选择）：'
+Min-p sampling for llama.cpp (0-1): '`lama.cpp` 中的 Min-p 采样（范围：0-1）'
+Module %s installed successfully.: 模块 %s 安装成功。
 Module %s purged successfully.: 模块 %s 已成功清除。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module install failed: %s': 模块安装失败：%s
 Port to bind llama.cpp server: 用于将代码绑定到 llama.cpp 服务器的端口。
 Preferred interaction language: 首选的交互语言
+Presence penalty for llama.cpp: lama.cpp 文件中存在的“惩罚机制”（即某些代码或设计导致的负面影响）
 Purge a module: “Purge a module” 的意思是“删除或清除某个模块”。
 'Purging module: %s': 正在清理模块：%s
 Remove a downloaded model: 删除已下载的模型
+Repeat penalty for llama.cpp: '`lama.cpp` 文件中的重复代码惩罚机制'
 Run a local model: 运行一个本地模型。
 Run module-specific settings: 运行模块特定的设置
+Sampling temperature for llama.cpp: '`lama.cpp` 文件中的采样温度'
 Search for models: 搜索模型
 Show system information: 显示系统信息
 SiliconFlow API key: SiliconFlow API密钥
@@ -363,12 +377,15 @@ Start a service: 启动一个服务
 Stop a service: 停止一个服务
 System management: 系统管理
 Tensor split for multi-GPU (comma-separated percentages): 用于多 GPU 的张量分割（百分比值以逗号分隔）
+Top-k sampling for llama.cpp (0 disables): 对于 llama.cpp，采用前 k 个样本的采样方法（k=0 时禁用该功能）。
+Top-p nucleus sampling for llama.cpp (0-1): 对于 llama.cpp 文件，采用“Top-p 核心采样”方法（范围为 0-1）
 Translation API base URL: 翻译 API 的基础 URL
 Translation model: 翻译模型
 Translation provider: 翻译服务提供商
 Translation timeout in seconds: 翻译超时时间（以秒为单位）
 Uninstall a module: 卸载一个模块
 'Uninstalling module: %s': 正在卸载模块：%s
+Update a module: 更新一个模块
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
