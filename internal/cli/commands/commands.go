@@ -377,6 +377,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			batchSize, _ := cmd.Flags().GetInt("batch-size")
 			ubatchSize, _ := cmd.Flags().GetInt("ubatch-size")
 			autoBatch, _ := cmd.Flags().GetBool("auto-batch")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			host, _ := cmd.Flags().GetString("host")
 			port, _ := cmd.Flags().GetInt("port")
 			temperature, _ := cmd.Flags().GetFloat64("temperature")
@@ -418,7 +419,12 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					return fmt.Errorf("ollama not found in PATH (install the ollama module first)")
 				}
 				cmd.Printf("Starting Ollama model: %s\n", modelID)
-				runCmd := exec.CommandContext(cmd.Context(), ollamaPath, "run", modelID)
+				ollamaArgs := []string{"run", modelID}
+				if dryRun {
+					printDryRunCommand(cmd, ollamaPath, ollamaArgs, nil)
+					return nil
+				}
+				runCmd := exec.CommandContext(cmd.Context(), ollamaPath, ollamaArgs...)
 				runCmd.Stdout = cmd.OutOrStdout()
 				runCmd.Stderr = cmd.ErrOrStderr()
 				runCmd.Stdin = cmd.InOrStdin()
@@ -472,34 +478,11 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
 				}
 				cmd.Printf("Starting vLLM server for %s\n", modelID)
-				args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
-				if vllmDefaults.dtype != "" {
-					args = append(args, "--dtype", vllmDefaults.dtype)
-				}
-				if vllmDefaults.maxModelLen > 0 {
-					args = append(args, "--max-model-len", strconv.Itoa(vllmDefaults.maxModelLen))
-				}
-				if vllmDefaults.gpuMemUtil > 0 {
-					args = append(args, "--gpu-memory-utilization", fmt.Sprintf("%.2f", vllmDefaults.gpuMemUtil))
-				}
-				if vllmDefaults.tensorParallelSize > 1 {
-					args = append(args, "--tensor-parallel-size", strconv.Itoa(vllmDefaults.tensorParallelSize))
-				}
-				if vllmDefaults.enforceEager {
-					args = append(args, "--enforce-eager")
-				}
-				if vllmDefaults.optimizationLevel >= 0 {
-					args = append(args, "--optimization-level", strconv.Itoa(vllmDefaults.optimizationLevel))
-				}
-				if vllmDefaults.disableCustomAllReduce {
-					args = append(args, "--disable-custom-all-reduce")
-				}
-				if vllmDefaults.maxNumSeqs > 0 {
-					args = append(args, "--max-num-seqs", strconv.Itoa(vllmDefaults.maxNumSeqs))
-				}
 				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
-				if enableTrustRemoteCode {
-					args = append(args, "--trust-remote-code")
+				args := buildVLLMServeArgs(modelRef, host, port, vllmDefaults, enableTrustRemoteCode)
+				if dryRun {
+					printDryRunCommand(cmd, vllmPath, args, vllmDefaults.env)
+					return nil
 				}
 				runCmd := exec.CommandContext(cmd.Context(), vllmPath, args...)
 				if len(vllmDefaults.env) > 0 {
@@ -575,37 +558,31 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				return fmt.Errorf("llama-server not found in PATH (install the llama.cpp module first)")
 			}
 
-			argsList := []string{
-				"--model", modelPath,
-				"--threads", strconv.Itoa(defaults.threads),
-				"--ctx-size", strconv.Itoa(defaults.ctxSize),
-				"--n-gpu-layers", strconv.Itoa(defaults.gpuLayers),
-				"--host", host,
-				"--port", strconv.Itoa(port),
-				"--temp", fmt.Sprintf("%.4g", temperature),
-				"--top-p", fmt.Sprintf("%.4g", topP),
-				"--top-k", strconv.Itoa(topK),
-				"--min-p", fmt.Sprintf("%.4g", minP),
-				"--presence-penalty", fmt.Sprintf("%.4g", presencePenalty),
-				"--repeat-penalty", fmt.Sprintf("%.4g", repeatPenalty),
-			}
-			if defaults.tensorSplit != "" {
-				argsList = append(argsList, "--tensor-split", defaults.tensorSplit)
-			}
-			if resolvedBatch > 0 {
-				argsList = append(argsList, "--batch-size", strconv.Itoa(resolvedBatch))
-			}
-			if resolvedUBatch > 0 {
-				argsList = append(argsList, "--ubatch-size", strconv.Itoa(resolvedUBatch))
-			}
-			if strings.TrimSpace(chatTemplateKwargs) != "" {
-				argsList = append(argsList, "--chat-template-kwargs", chatTemplateKwargs)
-			}
+			argsList := buildLlamaServerArgs(
+				modelPath,
+				defaults,
+				host,
+				port,
+				llamaSamplingParams{
+					Temperature:     temperature,
+					TopP:            topP,
+					TopK:            topK,
+					MinP:            minP,
+					PresencePenalty: presencePenalty,
+					RepeatPenalty:   repeatPenalty,
+				},
+				llamaBatchParams{BatchSize: resolvedBatch, UBatchSize: resolvedUBatch},
+				chatTemplateKwargs,
+			)
 
 			if autoBatch {
 				cmd.Printf("Auto batch tuned: --batch-size %d --ubatch-size %d\n", resolvedBatch, resolvedUBatch)
 			}
 			cmd.Printf("Starting llama.cpp server for %s\n", filepath.Base(modelPath))
+			if dryRun {
+				printDryRunCommand(cmd, llamaPath, argsList, nil)
+				return nil
+			}
 			runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
 			if err := addLlamaCppLibraryPath(runCmd); err != nil {
 				return err
@@ -625,6 +602,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("batch-size", 0, "Batch size for llama.cpp (0 = auto)")
 	runCmd.Flags().Int("ubatch-size", 0, "Micro batch size for llama.cpp (0 = auto)")
 	runCmd.Flags().Bool("auto-batch", false, "Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model")
+	runCmd.Flags().Bool("dry-run", false, "Print the final runtime command without launching the process")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
 	runCmd.Flags().Float64("temperature", 0.7, "Sampling temperature for llama.cpp")
@@ -835,6 +813,15 @@ type llamaRunDefaults struct {
 type llamaBatchParams struct {
 	BatchSize  int
 	UBatchSize int
+}
+
+type llamaSamplingParams struct {
+	Temperature     float64
+	TopP            float64
+	TopK            int
+	MinP            float64
+	PresencePenalty float64
+	RepeatPenalty   float64
 }
 
 type vllmRunDefaults struct {
@@ -1203,6 +1190,80 @@ func autoTuneBatchParams(info system.BaseInfoSummary, modelPath string, ctxSize 
 	return llamaBatchParams{
 		BatchSize:  batch,
 		UBatchSize: ubatch,
+	}
+}
+
+func buildVLLMServeArgs(modelRef, host string, port int, defaults vllmRunDefaults, enableTrustRemoteCode bool) []string {
+	args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+	if defaults.dtype != "" {
+		args = append(args, "--dtype", defaults.dtype)
+	}
+	if defaults.maxModelLen > 0 {
+		args = append(args, "--max-model-len", strconv.Itoa(defaults.maxModelLen))
+	}
+	if defaults.gpuMemUtil > 0 {
+		args = append(args, "--gpu-memory-utilization", fmt.Sprintf("%.2f", defaults.gpuMemUtil))
+	}
+	if defaults.tensorParallelSize > 1 {
+		args = append(args, "--tensor-parallel-size", strconv.Itoa(defaults.tensorParallelSize))
+	}
+	if defaults.enforceEager {
+		args = append(args, "--enforce-eager")
+	}
+	if defaults.optimizationLevel >= 0 {
+		args = append(args, "--optimization-level", strconv.Itoa(defaults.optimizationLevel))
+	}
+	if defaults.disableCustomAllReduce {
+		args = append(args, "--disable-custom-all-reduce")
+	}
+	if defaults.maxNumSeqs > 0 {
+		args = append(args, "--max-num-seqs", strconv.Itoa(defaults.maxNumSeqs))
+	}
+	if enableTrustRemoteCode {
+		args = append(args, "--trust-remote-code")
+	}
+	return args
+}
+
+func buildLlamaServerArgs(modelPath string, defaults llamaRunDefaults, host string, port int, sampling llamaSamplingParams, batch llamaBatchParams, chatTemplateKwargs string) []string {
+	args := []string{
+		"--model", modelPath,
+		"--threads", strconv.Itoa(defaults.threads),
+		"--ctx-size", strconv.Itoa(defaults.ctxSize),
+		"--n-gpu-layers", strconv.Itoa(defaults.gpuLayers),
+		"--host", host,
+		"--port", strconv.Itoa(port),
+		"--temp", fmt.Sprintf("%.4g", sampling.Temperature),
+		"--top-p", fmt.Sprintf("%.4g", sampling.TopP),
+		"--top-k", strconv.Itoa(sampling.TopK),
+		"--min-p", fmt.Sprintf("%.4g", sampling.MinP),
+		"--presence-penalty", fmt.Sprintf("%.4g", sampling.PresencePenalty),
+		"--repeat-penalty", fmt.Sprintf("%.4g", sampling.RepeatPenalty),
+	}
+	if defaults.tensorSplit != "" {
+		args = append(args, "--tensor-split", defaults.tensorSplit)
+	}
+	if batch.BatchSize > 0 {
+		args = append(args, "--batch-size", strconv.Itoa(batch.BatchSize))
+	}
+	if batch.UBatchSize > 0 {
+		args = append(args, "--ubatch-size", strconv.Itoa(batch.UBatchSize))
+	}
+	if strings.TrimSpace(chatTemplateKwargs) != "" {
+		args = append(args, "--chat-template-kwargs", chatTemplateKwargs)
+	}
+	return args
+}
+
+func printDryRunCommand(cmd *cobra.Command, binary string, args []string, extraEnv []string) {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, strconv.Quote(binary))
+	for _, arg := range args {
+		parts = append(parts, strconv.Quote(arg))
+	}
+	cmd.Printf("Dry run command: %s\n", strings.Join(parts, " "))
+	if len(extraEnv) > 0 {
+		cmd.Printf("Dry run env: %s\n", strings.Join(extraEnv, " "))
 	}
 }
 
