@@ -45,6 +45,7 @@ func init() {
 	commands.RegisterServiceCommands(rootCmd)
 	commands.RegisterModelCommands(rootCmd)
 	commands.RegisterProviderCommands(rootCmd)
+	commands.RegisterFailureCommands(rootCmd)
 	commands.RegisterSystemCommands(rootCmd)
 	commands.RegisterInitCommand(rootCmd)
 }

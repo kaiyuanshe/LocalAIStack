@@ -1,12 +1,15 @@
 package failure
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -67,13 +70,9 @@ type Advice struct {
 }
 
 func NewRecorder(baseDir string) (*Recorder, error) {
-	dir := strings.TrimSpace(baseDir)
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		dir = filepath.Join(home, ".localaistack", "failures")
+	dir, err := ResolveFailureDir(baseDir)
+	if err != nil {
+		return nil, err
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -82,6 +81,18 @@ func NewRecorder(baseDir string) (*Recorder, error) {
 		baseDir: dir,
 		now:     time.Now,
 	}, nil
+}
+
+func ResolveFailureDir(baseDir string) (string, error) {
+	dir := strings.TrimSpace(baseDir)
+	if dir != "" {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".localaistack", "failures"), nil
 }
 
 func RecordBestEffort(event Event) {
@@ -108,6 +119,102 @@ func RecordWithResultBestEffort(event Event) (Classification, Advice, string) {
 		return classification, advice, ""
 	}
 	return classification, advice, path
+}
+
+func ListEvents(baseDir string, limit int, phase, category string) ([]Event, error) {
+	dir, err := ResolveFailureDir(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".jsonl") {
+			files = append(files, filepath.Join(dir, name))
+		}
+	}
+	sort.Strings(files)
+
+	phaseFilter := strings.ToLower(strings.TrimSpace(phase))
+	categoryFilter := strings.ToLower(strings.TrimSpace(category))
+	events := make([]Event, 0)
+
+	for i := len(files) - 1; i >= 0; i-- {
+		fileEvents, err := readEventsFromFile(files[i])
+		if err != nil {
+			return nil, err
+		}
+		for j := len(fileEvents) - 1; j >= 0; j-- {
+			event := fileEvents[j]
+			if phaseFilter != "" && strings.ToLower(strings.TrimSpace(event.Phase)) != phaseFilter {
+				continue
+			}
+			if categoryFilter != "" && strings.ToLower(strings.TrimSpace(event.Classification.Category)) != categoryFilter {
+				continue
+			}
+			events = append(events, event)
+			if limit > 0 && len(events) >= limit {
+				return events, nil
+			}
+		}
+	}
+	return events, nil
+}
+
+func FindEventByID(baseDir, eventID string) (Event, error) {
+	id := strings.TrimSpace(eventID)
+	if id == "" {
+		return Event{}, errors.New("event id is required")
+	}
+	events, err := ListEvents(baseDir, 0, "", "")
+	if err != nil {
+		return Event{}, err
+	}
+	for _, event := range events {
+		if strings.TrimSpace(event.ID) == id {
+			return event, nil
+		}
+	}
+	return Event{}, fmt.Errorf("failure event %q not found", id)
+}
+
+func readEventsFromFile(path string) ([]Event, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	events := make([]Event, 0)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event Event
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		if strings.TrimSpace(event.Classification.Category) == "" {
+			event.Classification = Classify(errors.New(event.Error))
+		}
+		events = append(events, event)
+	}
+	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	return events, nil
 }
 
 func (r *Recorder) Record(event Event) (string, error) {

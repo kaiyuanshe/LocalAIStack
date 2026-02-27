@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -199,5 +200,46 @@ func TestFailureDebugEnabled(t *testing.T) {
 	t.Setenv(EnvFailureDebug, "off")
 	if FailureDebugEnabled() {
 		t.Fatalf("expected debug disabled for value off")
+	}
+}
+
+func TestListEventsAndFindByID(t *testing.T) {
+	base := t.TempDir()
+	rec, err := NewRecorder(base)
+	if err != nil {
+		t.Fatalf("NewRecorder: %v", err)
+	}
+
+	baseTime := time.Date(2026, 2, 27, 10, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		current := baseTime.Add(time.Duration(i) * time.Minute)
+		rec.now = func() time.Time { return current }
+		_, err := rec.Record(Event{
+			ID:    fmt.Sprintf("evt-%d", i),
+			Phase: PhaseSmartRun,
+			Error: "context deadline exceeded",
+		})
+		if err != nil {
+			t.Fatalf("Record: %v", err)
+		}
+	}
+
+	events, err := ListEvents(base, 2, PhaseSmartRun, CategoryTimeout)
+	if err != nil {
+		t.Fatalf("ListEvents: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
+	}
+	if events[0].ID != "evt-2" || events[1].ID != "evt-1" {
+		t.Fatalf("unexpected order: %+v", events)
+	}
+
+	found, err := FindEventByID(base, "evt-1")
+	if err != nil {
+		t.Fatalf("FindEventByID: %v", err)
+	}
+	if found.ID != "evt-1" {
+		t.Fatalf("unexpected event: %+v", found)
 	}
 }
