@@ -374,6 +374,9 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			threads, _ := cmd.Flags().GetInt("threads")
 			ctxSize, _ := cmd.Flags().GetInt("ctx-size")
 			gpuLayers, _ := cmd.Flags().GetInt("n-gpu-layers")
+			batchSize, _ := cmd.Flags().GetInt("batch-size")
+			ubatchSize, _ := cmd.Flags().GetInt("ubatch-size")
+			autoBatch, _ := cmd.Flags().GetBool("auto-batch")
 			host, _ := cmd.Flags().GetString("host")
 			port, _ := cmd.Flags().GetInt("port")
 			temperature, _ := cmd.Flags().GetFloat64("temperature")
@@ -545,6 +548,27 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			if repeatPenalty < 0 {
 				return fmt.Errorf("repeat-penalty must be >= 0")
 			}
+			if batchSize < 0 {
+				return fmt.Errorf("batch-size must be >= 0")
+			}
+			if ubatchSize < 0 {
+				return fmt.Errorf("ubatch-size must be >= 0")
+			}
+
+			resolvedBatch := batchSize
+			resolvedUBatch := ubatchSize
+			if autoBatch || resolvedBatch == 0 || resolvedUBatch == 0 {
+				autoResolved := autoTuneBatchParams(baseInfo, modelPath, defaults.ctxSize, defaults.gpuLayers)
+				if resolvedBatch == 0 {
+					resolvedBatch = autoResolved.BatchSize
+				}
+				if resolvedUBatch == 0 {
+					resolvedUBatch = autoResolved.UBatchSize
+				}
+			}
+			if resolvedUBatch > 0 && resolvedBatch > 0 && resolvedUBatch > resolvedBatch {
+				resolvedUBatch = resolvedBatch
+			}
 
 			llamaPath, err := exec.LookPath("llama-server")
 			if err != nil {
@@ -568,10 +592,19 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			if defaults.tensorSplit != "" {
 				argsList = append(argsList, "--tensor-split", defaults.tensorSplit)
 			}
+			if resolvedBatch > 0 {
+				argsList = append(argsList, "--batch-size", strconv.Itoa(resolvedBatch))
+			}
+			if resolvedUBatch > 0 {
+				argsList = append(argsList, "--ubatch-size", strconv.Itoa(resolvedUBatch))
+			}
 			if strings.TrimSpace(chatTemplateKwargs) != "" {
 				argsList = append(argsList, "--chat-template-kwargs", chatTemplateKwargs)
 			}
 
+			if autoBatch {
+				cmd.Printf("Auto batch tuned: --batch-size %d --ubatch-size %d\n", resolvedBatch, resolvedUBatch)
+			}
 			cmd.Printf("Starting llama.cpp server for %s\n", filepath.Base(modelPath))
 			runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
 			if err := addLlamaCppLibraryPath(runCmd); err != nil {
@@ -589,6 +622,9 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("ctx-size", 0, "Context size for llama.cpp (0 = auto)")
 	runCmd.Flags().Int("n-gpu-layers", -1, "GPU layers for llama.cpp (-1 = auto)")
 	runCmd.Flags().String("tensor-split", "", "Tensor split for multi-GPU (comma-separated percentages)")
+	runCmd.Flags().Int("batch-size", 0, "Batch size for llama.cpp (0 = auto)")
+	runCmd.Flags().Int("ubatch-size", 0, "Micro batch size for llama.cpp (0 = auto)")
+	runCmd.Flags().Bool("auto-batch", false, "Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
 	runCmd.Flags().Float64("temperature", 0.7, "Sampling temperature for llama.cpp")
@@ -794,6 +830,11 @@ type llamaRunDefaults struct {
 	ctxSize     int
 	gpuLayers   int
 	tensorSplit string
+}
+
+type llamaBatchParams struct {
+	BatchSize  int
+	UBatchSize int
 }
 
 type vllmRunDefaults struct {
@@ -1097,6 +1138,74 @@ func autoTuneRunParams(defaults llamaRunDefaults, info system.BaseInfoSummary, m
 	return result
 }
 
+func autoTuneBatchParams(info system.BaseInfoSummary, modelPath string, ctxSize int, gpuLayers int) llamaBatchParams {
+	sizeB, quant := inferModelInfo(modelPath)
+	vram := parseVRAMFromGPUName(info.GPUName)
+	gpuCount := info.GPUCount
+	if gpuCount <= 0 && vram > 0 {
+		gpuCount = 1
+	}
+
+	ubatch := 32
+	switch {
+	case vram >= 80:
+		ubatch = 512
+	case vram >= 48:
+		ubatch = 256
+	case vram >= 24:
+		ubatch = 128
+	case vram >= 16:
+		ubatch = 96
+	case vram >= 8:
+		ubatch = 64
+	default:
+		if info.MemoryKB >= 128*1024*1024 {
+			ubatch = 128
+		} else if info.MemoryKB >= 64*1024*1024 {
+			ubatch = 64
+		}
+	}
+
+	if strings.HasPrefix(quant, "q8") {
+		ubatch /= 2
+	} else if strings.HasPrefix(quant, "q2") || strings.HasPrefix(quant, "q3") {
+		ubatch *= 2
+	}
+
+	if sizeB >= 70 {
+		ubatch /= 2
+	} else if sizeB >= 30 {
+		ubatch = ubatch * 3 / 4
+	}
+
+	switch {
+	case ctxSize > 16384:
+		ubatch /= 4
+	case ctxSize > 8192:
+		ubatch /= 2
+	}
+
+	if gpuLayers == 0 {
+		ubatch /= 2
+	}
+
+	if gpuCount > 1 {
+		ubatch *= minInt(gpuCount, 2)
+	}
+
+	ubatch = clampInt(closestPowerOfTwo(ubatch), 16, 1024)
+	batch := ubatch * 2
+	if vram >= 48 || (gpuCount > 1 && vram >= 24) {
+		batch = ubatch * 4
+	}
+	batch = clampInt(closestPowerOfTwo(batch), ubatch, 2048)
+
+	return llamaBatchParams{
+		BatchSize:  batch,
+		UBatchSize: ubatch,
+	}
+}
+
 func makeTensorSplit(count int) string {
 	if count <= 1 {
 		return ""
@@ -1120,6 +1229,41 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func clampInt(v, minV, maxV int) int {
+	if v < minV {
+		return minV
+	}
+	if v > maxV {
+		return maxV
+	}
+	return v
+}
+
+func closestPowerOfTwo(v int) int {
+	if v <= 1 {
+		return 1
+	}
+	p := 1
+	for p < v {
+		p <<= 1
+	}
+	prev := p >> 1
+	if prev < 1 {
+		return p
+	}
+	if (p - v) < (v - prev) {
+		return p
+	}
+	return prev
 }
 
 func hasVLLMConfig(modelDir string) bool {
