@@ -16,6 +16,10 @@
 
 InstallSpec defines a **machine-first, declarative specification** for describing the full lifecycle of software modules managed by LocalAIStack.
 
+LLM-assisted install planning behavior and operational controls are documented in:
+
+* [`docs/install_planner_p1.md`](./install_planner_p1.md)
+
 It standardizes how software is:
 
 * discovered

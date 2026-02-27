@@ -254,6 +254,10 @@ Dependencies are resolved before installation planning.
 The resolver outputs a topologically sorted installation plan so dependencies are installed
 before dependents.
 
+For LLM-assisted install planning details and runtime switches, see:
+
+* [`docs/install_planner_p1.md`](./install_planner_p1.md)
+
 ---
 
 ## 10. Versioning and Compatibility
