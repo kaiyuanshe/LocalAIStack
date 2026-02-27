@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/modelmanager"
@@ -25,6 +27,8 @@ import (
 func init() {
 	// Initialize commands package
 }
+
+var llmRegistryFactory = llm.NewRegistryFromConfig
 
 func RegisterModuleCommands(rootCmd *cobra.Command) {
 	moduleCmd := &cobra.Command{
@@ -377,6 +381,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			batchSize, _ := cmd.Flags().GetInt("batch-size")
 			ubatchSize, _ := cmd.Flags().GetInt("ubatch-size")
 			autoBatch, _ := cmd.Flags().GetBool("auto-batch")
+			smartRun, _ := cmd.Flags().GetBool("smart-run")
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			host, _ := cmd.Flags().GetString("host")
 			port, _ := cmd.Flags().GetInt("port")
@@ -390,6 +395,29 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			vllmMaxModelLen, _ := cmd.Flags().GetInt("vllm-max-model-len")
 			vllmGpuMemUtil, _ := cmd.Flags().GetFloat64("vllm-gpu-memory-utilization")
 			vllmTrustRemoteCode, _ := cmd.Flags().GetBool("vllm-trust-remote-code")
+			threadsChanged := cmd.Flags().Changed("threads")
+			ctxSizeChanged := cmd.Flags().Changed("ctx-size")
+			gpuLayersChanged := cmd.Flags().Changed("n-gpu-layers")
+			tensorSplitChanged := cmd.Flags().Changed("tensor-split")
+			batchSizeChanged := cmd.Flags().Changed("batch-size")
+			ubatchSizeChanged := cmd.Flags().Changed("ubatch-size")
+			temperatureChanged := cmd.Flags().Changed("temperature")
+			topPChanged := cmd.Flags().Changed("top-p")
+			topKChanged := cmd.Flags().Changed("top-k")
+			minPChanged := cmd.Flags().Changed("min-p")
+			presencePenaltyChanged := cmd.Flags().Changed("presence-penalty")
+			repeatPenaltyChanged := cmd.Flags().Changed("repeat-penalty")
+			chatTemplateKwargsChanged := cmd.Flags().Changed("chat-template-kwargs")
+			vllmMaxModelLenChanged := cmd.Flags().Changed("vllm-max-model-len")
+			vllmGpuMemUtilChanged := cmd.Flags().Changed("vllm-gpu-memory-utilization")
+			vllmTrustRemoteCodeChanged := cmd.Flags().Changed("vllm-trust-remote-code")
+
+			var cfg *config.Config
+			if smartRun {
+				if loaded, err := config.LoadConfig(); err == nil {
+					cfg = loaded
+				}
+			}
 
 			mgr := createModelManager()
 
@@ -477,8 +505,18 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				if vllmGpuMemUtil > 0 {
 					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
 				}
-				cmd.Printf("Starting vLLM server for %s\n", modelID)
 				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
+				if smartRun && cfg != nil {
+					advice, err := suggestVLLMAdvice(cmd.Context(), cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode)
+					if err == nil {
+						applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice, map[string]bool{
+							"max_model_len":          vllmMaxModelLenChanged,
+							"gpu_memory_utilization": vllmGpuMemUtilChanged,
+							"trust_remote_code":      vllmTrustRemoteCodeChanged,
+						})
+					}
+				}
+				cmd.Printf("Starting vLLM server for %s\n", modelID)
 				args := buildVLLMServeArgs(modelRef, host, port, vllmDefaults, enableTrustRemoteCode)
 				if dryRun {
 					printDryRunCommand(cmd, vllmPath, args, vllmDefaults.env)
@@ -516,6 +554,51 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			if tensorSplit, _ := cmd.Flags().GetString("tensor-split"); tensorSplit != "" {
 				defaults.tensorSplit = tensorSplit
 			}
+			resolvedBatch := batchSize
+			resolvedUBatch := ubatchSize
+			if autoBatch || resolvedBatch == 0 || resolvedUBatch == 0 {
+				autoResolved := autoTuneBatchParams(baseInfo, modelPath, defaults.ctxSize, defaults.gpuLayers)
+				if resolvedBatch == 0 {
+					resolvedBatch = autoResolved.BatchSize
+				}
+				if resolvedUBatch == 0 {
+					resolvedUBatch = autoResolved.UBatchSize
+				}
+			}
+			if resolvedUBatch > 0 && resolvedBatch > 0 && resolvedUBatch > resolvedBatch {
+				resolvedUBatch = resolvedBatch
+			}
+			sampling := llamaSamplingParams{
+				Temperature:     temperature,
+				TopP:            topP,
+				TopK:            topK,
+				MinP:            minP,
+				PresencePenalty: presencePenalty,
+				RepeatPenalty:   repeatPenalty,
+			}
+			if smartRun && cfg != nil {
+				advice, err := suggestLlamaAdvice(cmd.Context(), cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
+					BatchSize:  resolvedBatch,
+					UBatchSize: resolvedUBatch,
+				}, sampling, chatTemplateKwargs)
+				if err == nil {
+					applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice, map[string]bool{
+						"threads":              threadsChanged,
+						"ctx_size":             ctxSizeChanged,
+						"n_gpu_layers":         gpuLayersChanged,
+						"tensor_split":         tensorSplitChanged,
+						"batch_size":           batchSizeChanged,
+						"ubatch_size":          ubatchSizeChanged,
+						"temperature":          temperatureChanged,
+						"top_p":                topPChanged,
+						"top_k":                topKChanged,
+						"min_p":                minPChanged,
+						"presence_penalty":     presencePenaltyChanged,
+						"repeat_penalty":       repeatPenaltyChanged,
+						"chat_template_kwargs": chatTemplateKwargsChanged,
+					})
+				}
+			}
 			if temperature < 0 {
 				return fmt.Errorf("temperature must be >= 0")
 			}
@@ -538,21 +621,6 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				return fmt.Errorf("ubatch-size must be >= 0")
 			}
 
-			resolvedBatch := batchSize
-			resolvedUBatch := ubatchSize
-			if autoBatch || resolvedBatch == 0 || resolvedUBatch == 0 {
-				autoResolved := autoTuneBatchParams(baseInfo, modelPath, defaults.ctxSize, defaults.gpuLayers)
-				if resolvedBatch == 0 {
-					resolvedBatch = autoResolved.BatchSize
-				}
-				if resolvedUBatch == 0 {
-					resolvedUBatch = autoResolved.UBatchSize
-				}
-			}
-			if resolvedUBatch > 0 && resolvedBatch > 0 && resolvedUBatch > resolvedBatch {
-				resolvedUBatch = resolvedBatch
-			}
-
 			llamaPath, err := exec.LookPath("llama-server")
 			if err != nil {
 				return fmt.Errorf("llama-server not found in PATH (install the llama.cpp module first)")
@@ -564,12 +632,12 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				host,
 				port,
 				llamaSamplingParams{
-					Temperature:     temperature,
-					TopP:            topP,
-					TopK:            topK,
-					MinP:            minP,
-					PresencePenalty: presencePenalty,
-					RepeatPenalty:   repeatPenalty,
+					Temperature:     sampling.Temperature,
+					TopP:            sampling.TopP,
+					TopK:            sampling.TopK,
+					MinP:            sampling.MinP,
+					PresencePenalty: sampling.PresencePenalty,
+					RepeatPenalty:   sampling.RepeatPenalty,
 				},
 				llamaBatchParams{BatchSize: resolvedBatch, UBatchSize: resolvedUBatch},
 				chatTemplateKwargs,
@@ -602,6 +670,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("batch-size", 0, "Batch size for llama.cpp (0 = auto)")
 	runCmd.Flags().Int("ubatch-size", 0, "Micro batch size for llama.cpp (0 = auto)")
 	runCmd.Flags().Bool("auto-batch", false, "Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model")
+	runCmd.Flags().Bool("smart-run", false, "Use LLM to refine runtime parameters from hardware and model context")
 	runCmd.Flags().Bool("dry-run", false, "Print the final runtime command without launching the process")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
@@ -822,6 +891,40 @@ type llamaSamplingParams struct {
 	MinP            float64
 	PresencePenalty float64
 	RepeatPenalty   float64
+}
+
+type llamaPlannerAdvice struct {
+	Threads            *int     `json:"threads,omitempty"`
+	CtxSize            *int     `json:"ctx_size,omitempty"`
+	NGPULayers         *int     `json:"n_gpu_layers,omitempty"`
+	TensorSplit        *string  `json:"tensor_split,omitempty"`
+	BatchSize          *int     `json:"batch_size,omitempty"`
+	UBatchSize         *int     `json:"ubatch_size,omitempty"`
+	Temperature        *float64 `json:"temperature,omitempty"`
+	TopP               *float64 `json:"top_p,omitempty"`
+	TopK               *int     `json:"top_k,omitempty"`
+	MinP               *float64 `json:"min_p,omitempty"`
+	PresencePenalty    *float64 `json:"presence_penalty,omitempty"`
+	RepeatPenalty      *float64 `json:"repeat_penalty,omitempty"`
+	ChatTemplateKwargs *string  `json:"chat_template_kwargs,omitempty"`
+}
+
+type vllmPlannerAdvice struct {
+	MaxModelLen            *int     `json:"max_model_len,omitempty"`
+	GPUMemoryUtilization   *float64 `json:"gpu_memory_utilization,omitempty"`
+	DType                  *string  `json:"dtype,omitempty"`
+	TensorParallelSize     *int     `json:"tensor_parallel_size,omitempty"`
+	EnforceEager           *bool    `json:"enforce_eager,omitempty"`
+	OptimizationLevel      *int     `json:"optimization_level,omitempty"`
+	MaxNumSeqs             *int     `json:"max_num_seqs,omitempty"`
+	DisableCustomAllReduce *bool    `json:"disable_custom_all_reduce,omitempty"`
+	TrustRemoteCode        *bool    `json:"trust_remote_code,omitempty"`
+}
+
+type smartRunAdviceEnvelope struct {
+	Reason string             `json:"reason,omitempty"`
+	Llama  llamaPlannerAdvice `json:"llama,omitempty"`
+	VLLM   vllmPlannerAdvice  `json:"vllm,omitempty"`
 }
 
 type vllmRunDefaults struct {
@@ -1265,6 +1368,265 @@ func printDryRunCommand(cmd *cobra.Command, binary string, args []string, extraE
 	if len(extraEnv) > 0 {
 		cmd.Printf("Dry run env: %s\n", strings.Join(extraEnv, " "))
 	}
+}
+
+func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelPath string, info system.BaseInfoSummary, defaults llamaRunDefaults, batch llamaBatchParams, sampling llamaSamplingParams, chatTemplateKwargs string) (llamaPlannerAdvice, error) {
+	registry, err := llmRegistryFactory(cfg)
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	provider, err := registry.Provider(cfg.Provider)
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	input := map[string]any{
+		"runtime": "llama.cpp",
+		"model": map[string]any{
+			"id":   modelID,
+			"path": modelPath,
+		},
+		"hardware": info,
+		"baseline": map[string]any{
+			"threads":              defaults.threads,
+			"ctx_size":             defaults.ctxSize,
+			"n_gpu_layers":         defaults.gpuLayers,
+			"tensor_split":         defaults.tensorSplit,
+			"batch_size":           batch.BatchSize,
+			"ubatch_size":          batch.UBatchSize,
+			"temperature":          sampling.Temperature,
+			"top_p":                sampling.TopP,
+			"top_k":                sampling.TopK,
+			"min_p":                sampling.MinP,
+			"presence_penalty":     sampling.PresencePenalty,
+			"repeat_penalty":       sampling.RepeatPenalty,
+			"chat_template_kwargs": chatTemplateKwargs,
+		},
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
+Return JSON only.
+Schema:
+{"llama":{"threads":int,"ctx_size":int,"n_gpu_layers":int,"tensor_split":string,"batch_size":int,"ubatch_size":int,"temperature":number,"top_p":number,"top_k":int,"min_p":number,"presence_penalty":number,"repeat_penalty":number,"chat_template_kwargs":string},"reason":string}
+Rules:
+- only suggest safe values for local inference stability.
+- do not add new fields.
+Input:
+%s`, string(payload))
+	resp, err := provider.Generate(ctx, llm.Request{
+		Prompt:  prompt,
+		Model:   cfg.Model,
+		Timeout: cfg.TimeoutSeconds,
+	})
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	var env smartRunAdviceEnvelope
+	if err := parseSmartRunAdvice(resp.Text, &env); err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	return env.Llama, nil
+}
+
+func suggestVLLMAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelRef string, info system.BaseInfoSummary, defaults vllmRunDefaults, trustRemoteCode bool) (vllmPlannerAdvice, error) {
+	registry, err := llmRegistryFactory(cfg)
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	provider, err := registry.Provider(cfg.Provider)
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	input := map[string]any{
+		"runtime": "vllm",
+		"model": map[string]any{
+			"id":  modelID,
+			"ref": modelRef,
+		},
+		"hardware": info,
+		"baseline": map[string]any{
+			"max_model_len":             defaults.maxModelLen,
+			"gpu_memory_utilization":    defaults.gpuMemUtil,
+			"dtype":                     defaults.dtype,
+			"tensor_parallel_size":      defaults.tensorParallelSize,
+			"enforce_eager":             defaults.enforceEager,
+			"optimization_level":        defaults.optimizationLevel,
+			"max_num_seqs":              defaults.maxNumSeqs,
+			"disable_custom_all_reduce": defaults.disableCustomAllReduce,
+			"trust_remote_code":         trustRemoteCode,
+		},
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
+Return JSON only.
+Schema:
+{"vllm":{"max_model_len":int,"gpu_memory_utilization":number,"dtype":string,"tensor_parallel_size":int,"enforce_eager":bool,"optimization_level":int,"max_num_seqs":int,"disable_custom_all_reduce":bool,"trust_remote_code":bool},"reason":string}
+Rules:
+- only suggest safe values for local inference stability.
+- do not add new fields.
+Input:
+%s`, string(payload))
+	resp, err := provider.Generate(ctx, llm.Request{
+		Prompt:  prompt,
+		Model:   cfg.Model,
+		Timeout: cfg.TimeoutSeconds,
+	})
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	var env smartRunAdviceEnvelope
+	if err := parseSmartRunAdvice(resp.Text, &env); err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	return env.VLLM, nil
+}
+
+func parseSmartRunAdvice(text string, out *smartRunAdviceEnvelope) error {
+	payload := extractFirstJSONObject(text)
+	if payload == "" {
+		return fmt.Errorf("smart run response did not include JSON")
+	}
+	if err := json.Unmarshal([]byte(payload), out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func applyLlamaAdvice(defaults *llamaRunDefaults, resolvedBatch *int, resolvedUBatch *int, sampling *llamaSamplingParams, chatTemplateKwargs *string, advice llamaPlannerAdvice, changed map[string]bool) {
+	if !changed["threads"] && advice.Threads != nil {
+		defaults.threads = clampInt(*advice.Threads, 1, 256)
+	}
+	if !changed["ctx_size"] && advice.CtxSize != nil {
+		defaults.ctxSize = clampInt(*advice.CtxSize, 512, 262144)
+	}
+	if !changed["n_gpu_layers"] && advice.NGPULayers != nil {
+		defaults.gpuLayers = clampInt(*advice.NGPULayers, 0, 999)
+	}
+	if !changed["tensor_split"] && advice.TensorSplit != nil {
+		defaults.tensorSplit = strings.TrimSpace(*advice.TensorSplit)
+	}
+	if !changed["batch_size"] && advice.BatchSize != nil {
+		*resolvedBatch = clampInt(*advice.BatchSize, 16, 4096)
+	}
+	if !changed["ubatch_size"] && advice.UBatchSize != nil {
+		*resolvedUBatch = clampInt(*advice.UBatchSize, 16, 2048)
+	}
+	if !changed["temperature"] && advice.Temperature != nil {
+		sampling.Temperature = clampFloat(*advice.Temperature, 0.0, 2.0)
+	}
+	if !changed["top_p"] && advice.TopP != nil {
+		sampling.TopP = clampFloat(*advice.TopP, 0.0, 1.0)
+	}
+	if !changed["top_k"] && advice.TopK != nil {
+		sampling.TopK = clampInt(*advice.TopK, 0, 1000)
+	}
+	if !changed["min_p"] && advice.MinP != nil {
+		sampling.MinP = clampFloat(*advice.MinP, 0.0, 1.0)
+	}
+	if !changed["presence_penalty"] && advice.PresencePenalty != nil {
+		sampling.PresencePenalty = clampFloat(*advice.PresencePenalty, 0.0, 2.0)
+	}
+	if !changed["repeat_penalty"] && advice.RepeatPenalty != nil {
+		sampling.RepeatPenalty = clampFloat(*advice.RepeatPenalty, 0.0, 2.0)
+	}
+	if !changed["chat_template_kwargs"] && advice.ChatTemplateKwargs != nil {
+		*chatTemplateKwargs = strings.TrimSpace(*advice.ChatTemplateKwargs)
+	}
+	if *resolvedUBatch > 0 && *resolvedBatch > 0 && *resolvedUBatch > *resolvedBatch {
+		*resolvedUBatch = *resolvedBatch
+	}
+}
+
+func applyVLLMAdvice(defaults *vllmRunDefaults, trustRemoteCode *bool, advice vllmPlannerAdvice, changed map[string]bool) {
+	if !changed["max_model_len"] && advice.MaxModelLen != nil {
+		defaults.maxModelLen = clampInt(*advice.MaxModelLen, 256, 131072)
+	}
+	if !changed["gpu_memory_utilization"] && advice.GPUMemoryUtilization != nil {
+		defaults.gpuMemUtil = clampFloat(*advice.GPUMemoryUtilization, 0.30, 0.98)
+	}
+	if advice.DType != nil {
+		trimmed := strings.ToLower(strings.TrimSpace(*advice.DType))
+		if trimmed == "float16" || trimmed == "bfloat16" || trimmed == "float32" {
+			defaults.dtype = trimmed
+		}
+	}
+	if advice.TensorParallelSize != nil {
+		defaults.tensorParallelSize = clampInt(*advice.TensorParallelSize, 1, 16)
+	}
+	if advice.EnforceEager != nil {
+		defaults.enforceEager = *advice.EnforceEager
+	}
+	if advice.OptimizationLevel != nil {
+		defaults.optimizationLevel = clampInt(*advice.OptimizationLevel, 0, 3)
+	}
+	if advice.MaxNumSeqs != nil {
+		defaults.maxNumSeqs = clampInt(*advice.MaxNumSeqs, 1, 256)
+	}
+	if advice.DisableCustomAllReduce != nil {
+		defaults.disableCustomAllReduce = *advice.DisableCustomAllReduce
+	}
+	if !changed["trust_remote_code"] && advice.TrustRemoteCode != nil {
+		*trustRemoteCode = *advice.TrustRemoteCode
+	}
+}
+
+func clampFloat(v, minV, maxV float64) float64 {
+	if v < minV {
+		return minV
+	}
+	if v > maxV {
+		return maxV
+	}
+	return v
+}
+
+func extractFirstJSONObject(text string) string {
+	start := -1
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := 0; i < len(text); i++ {
+		ch := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
+				return text[start : i+1]
+			}
+		}
+	}
+	return ""
 }
 
 func makeTensorSplit(count int) string {

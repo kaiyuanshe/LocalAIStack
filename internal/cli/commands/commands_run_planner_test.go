@@ -1,8 +1,14 @@
 package commands
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
+	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
 )
 
 func TestBuildVLLMServeArgs(t *testing.T) {
@@ -95,3 +101,125 @@ func TestBuildLlamaServerArgsSkipsOptional(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSmartRunAdvice(t *testing.T) {
+	text := "```json\n{\"llama\":{\"threads\":12,\"ctx_size\":8192},\"reason\":\"ok\"}\n```"
+	var out smartRunAdviceEnvelope
+	if err := parseSmartRunAdvice(text, &out); err != nil {
+		t.Fatalf("parseSmartRunAdvice returned error: %v", err)
+	}
+	if out.Llama.Threads == nil || *out.Llama.Threads != 12 {
+		t.Fatalf("expected llama threads=12, got %+v", out.Llama.Threads)
+	}
+	if out.Llama.CtxSize == nil || *out.Llama.CtxSize != 8192 {
+		t.Fatalf("expected llama ctx_size=8192, got %+v", out.Llama.CtxSize)
+	}
+}
+
+func TestApplyLlamaAdviceRespectsChangedFlags(t *testing.T) {
+	defaults := llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}
+	resolvedBatch := 256
+	resolvedUBatch := 128
+	sampling := llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20, MinP: 0, PresencePenalty: 1.5, RepeatPenalty: 1.0}
+	chatKwargs := ""
+	advice := llamaPlannerAdvice{
+		Threads:   intPtr(24),
+		CtxSize:   intPtr(16384),
+		BatchSize: intPtr(1024),
+	}
+	changed := map[string]bool{
+		"threads":    true,
+		"ctx_size":   false,
+		"batch_size": true,
+	}
+	applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatKwargs, advice, changed)
+	if defaults.threads != 8 {
+		t.Fatalf("threads should remain user-defined, got %d", defaults.threads)
+	}
+	if defaults.ctxSize != 16384 {
+		t.Fatalf("ctx_size should be updated by advice, got %d", defaults.ctxSize)
+	}
+	if resolvedBatch != 256 {
+		t.Fatalf("batch_size should remain user-defined, got %d", resolvedBatch)
+	}
+}
+
+func TestApplyVLLMAdviceRespectsChangedFlags(t *testing.T) {
+	defaults := vllmRunDefaults{maxModelLen: 4096, gpuMemUtil: 0.88}
+	trustRemoteCode := false
+	advice := vllmPlannerAdvice{
+		MaxModelLen:          intPtr(8192),
+		GPUMemoryUtilization: floatPtr(0.95),
+		TrustRemoteCode:      boolPtr(true),
+	}
+	changed := map[string]bool{
+		"max_model_len":          true,
+		"gpu_memory_utilization": false,
+		"trust_remote_code":      true,
+	}
+	applyVLLMAdvice(&defaults, &trustRemoteCode, advice, changed)
+	if defaults.maxModelLen != 4096 {
+		t.Fatalf("max_model_len should remain user-defined, got %d", defaults.maxModelLen)
+	}
+	if defaults.gpuMemUtil != 0.95 {
+		t.Fatalf("gpu_memory_utilization should be updated by advice, got %.2f", defaults.gpuMemUtil)
+	}
+	if trustRemoteCode {
+		t.Fatalf("trust_remote_code should remain user-defined false")
+	}
+}
+
+func TestSuggestAdviceWithStubProvider(t *testing.T) {
+	original := llmRegistryFactory
+	defer func() { llmRegistryFactory = original }()
+	llmRegistryFactory = func(cfg config.LLMConfig) (*llm.Registry, error) {
+		registry := llm.NewRegistry()
+		if err := registry.Register(stubLLMProvider{}); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	}
+
+	cfg := config.LLMConfig{Provider: "stub", Model: "deepseek-ai/DeepSeek-V3.2", TimeoutSeconds: 5}
+	info := system.BaseInfoSummary{CPUCores: 8, MemoryKB: 32 * 1024 * 1024}
+	llamaAdvice, err := suggestLlamaAdvice(context.Background(), cfg, "demo", "/tmp/demo.gguf", info, llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}, llamaBatchParams{BatchSize: 256, UBatchSize: 128}, llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20}, "")
+	if err != nil {
+		t.Fatalf("suggestLlamaAdvice returned error: %v", err)
+	}
+	if llamaAdvice.CtxSize == nil || *llamaAdvice.CtxSize != 8192 {
+		t.Fatalf("expected llama advice ctx_size=8192, got %+v", llamaAdvice.CtxSize)
+	}
+
+	vllmAdvice, err := suggestVLLMAdvice(context.Background(), cfg, "demo", "org/repo", info, vllmRunDefaults{maxModelLen: 4096, gpuMemUtil: 0.88}, false)
+	if err != nil {
+		t.Fatalf("suggestVLLMAdvice returned error: %v", err)
+	}
+	if vllmAdvice.MaxModelLen == nil || *vllmAdvice.MaxModelLen != 6144 {
+		t.Fatalf("expected vllm advice max_model_len=6144, got %+v", vllmAdvice.MaxModelLen)
+	}
+}
+
+type stubLLMProvider struct{}
+
+func (p stubLLMProvider) Name() string { return "stub" }
+
+func (p stubLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Response, error) {
+	if strings.Contains(req.Prompt, `"runtime":"llama.cpp"`) {
+		payload, _ := json.Marshal(map[string]any{
+			"llama": map[string]any{
+				"ctx_size": 8192,
+			},
+		})
+		return llm.Response{Text: string(payload)}, nil
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"vllm": map[string]any{
+			"max_model_len": 6144,
+		},
+	})
+	return llm.Response{Text: string(payload)}, nil
+}
+
+func intPtr(v int) *int           { return &v }
+func floatPtr(v float64) *float64 { return &v }
+func boolPtr(v bool) *bool        { return &v }
