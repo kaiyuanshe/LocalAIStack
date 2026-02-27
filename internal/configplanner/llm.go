@@ -72,6 +72,8 @@ Input:
 		return Plan{}, err
 	}
 	merged.Source = "llm"
+	merged.Planner.Mode = "llm+static"
+	merged.Planner.Version = "p3-b"
 	if strings.TrimSpace(env.Reason) != "" {
 		merged.Reason = strings.TrimSpace(env.Reason)
 	}

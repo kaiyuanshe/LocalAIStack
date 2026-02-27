@@ -19,13 +19,30 @@ type Change struct {
 	Reason string `json:"reason"`
 }
 
+type PlannerMeta struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Mode    string `json:"mode"`
+}
+
+type Context struct {
+	CPUCores int    `json:"cpu_cores"`
+	MemoryKB int64  `json:"memory_kb"`
+	GPUName  string `json:"gpu_name,omitempty"`
+	GPUCount int    `json:"gpu_count"`
+}
+
 type Plan struct {
-	Module      string   `json:"module"`
-	Model       string   `json:"model,omitempty"`
-	Source      string   `json:"source"`
-	Reason      string   `json:"reason"`
-	GeneratedAt string   `json:"generated_at"`
-	Changes     []Change `json:"changes"`
+	SchemaVersion string      `json:"schema_version"`
+	Planner       PlannerMeta `json:"planner"`
+	Module        string      `json:"module"`
+	Model         string      `json:"model,omitempty"`
+	Source        string      `json:"source"`
+	Reason        string      `json:"reason"`
+	GeneratedAt   string      `json:"generated_at"`
+	Context       Context     `json:"context"`
+	Changes       []Change    `json:"changes"`
+	Warnings      []string    `json:"warnings,omitempty"`
 }
 
 func BuildStaticPlan(moduleName, modelID string, info system.BaseInfoSummary) (Plan, error) {
@@ -35,11 +52,23 @@ func BuildStaticPlan(moduleName, modelID string, info system.BaseInfoSummary) (P
 	}
 
 	plan := Plan{
+		SchemaVersion: "las.configplan/v0.1.0",
+		Planner: PlannerMeta{
+			Name:    "module-config-planner",
+			Version: "p3-a",
+			Mode:    "static",
+		},
 		Module:      name,
 		Model:       strings.TrimSpace(modelID),
 		Source:      "static",
 		Reason:      "hardware-aware static planner",
 		GeneratedAt: time.Now().Format(time.RFC3339),
+		Context: Context{
+			CPUCores: info.CPUCores,
+			MemoryKB: info.MemoryKB,
+			GPUName:  strings.TrimSpace(info.GPUName),
+			GPUCount: info.GPUCount,
+		},
 	}
 
 	switch name {

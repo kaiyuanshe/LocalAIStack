@@ -178,6 +178,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			plannerDebug, _ := cmd.Flags().GetBool("planner-debug")
 			plannerStrict, _ := cmd.Flags().GetBool("planner-strict")
+			outputFormat, _ := cmd.Flags().GetString("output")
 
 			baseInfoPath := configplanner.ResolveBaseInfoPath()
 			baseInfo, err := system.LoadBaseInfoSummary(baseInfoPath)
@@ -228,11 +229,18 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 				cmd.Printf("Config planner: source=%s reason=%s\n", source, reason)
 			}
 
-			payload, err := json.MarshalIndent(plan, "", "  ")
-			if err != nil {
-				return err
+			switch strings.ToLower(strings.TrimSpace(outputFormat)) {
+			case "", "text":
+				printConfigPlanText(cmd, plan)
+			case "json":
+				payload, err := json.MarshalIndent(plan, "", "  ")
+				if err != nil {
+					return err
+				}
+				cmd.Printf("%s\n", payload)
+			default:
+				return fmt.Errorf("unsupported output format %q (use text or json)", outputFormat)
 			}
-			cmd.Printf("%s\n", payload)
 
 			if dryRun || !apply {
 				return nil
@@ -250,6 +258,7 @@ func RegisterModuleCommands(rootCmd *cobra.Command) {
 	configPlanCmd.Flags().Bool("dry-run", false, "Print generated plan without saving")
 	configPlanCmd.Flags().Bool("planner-debug", false, "Print planner source and reason")
 	configPlanCmd.Flags().Bool("planner-strict", false, "Fail immediately when planner cannot generate a valid plan")
+	configPlanCmd.Flags().String("output", "text", "Output format for plan display (text|json)")
 
 	moduleCmd.AddCommand(installCmd)
 	moduleCmd.AddCommand(updateCmd)
@@ -990,6 +999,46 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 	}
 
 	writer.Flush()
+}
+
+func printConfigPlanText(cmd *cobra.Command, plan configplanner.Plan) {
+	cmd.Printf("Config Plan\n")
+	cmd.Printf("  Module: %s\n", plan.Module)
+	if strings.TrimSpace(plan.Model) != "" {
+		cmd.Printf("  Model: %s\n", plan.Model)
+	}
+	cmd.Printf("  Source: %s\n", plan.Source)
+	cmd.Printf("  Reason: %s\n", plan.Reason)
+	cmd.Printf("  Planner: %s@%s (%s)\n", plan.Planner.Name, plan.Planner.Version, plan.Planner.Mode)
+	cmd.Printf("  Hardware: cpu=%d, memory_kb=%d, gpu=%s, gpu_count=%d\n",
+		plan.Context.CPUCores, plan.Context.MemoryKB, fallbackString(plan.Context.GPUName, "n/a"), plan.Context.GPUCount)
+	cmd.Printf("  GeneratedAt: %s\n", plan.GeneratedAt)
+	cmd.Printf("  Changes: %d\n", len(plan.Changes))
+
+	if len(plan.Changes) == 0 {
+		return
+	}
+	writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(writer, "SCOPE\tKEY\tVALUE\tREASON")
+	for _, change := range plan.Changes {
+		fmt.Fprintf(writer, "%s\t%s\t%v\t%s\n",
+			change.Scope, change.Key, change.Value, change.Reason)
+	}
+	_ = writer.Flush()
+
+	if len(plan.Warnings) > 0 {
+		cmd.Println("Warnings:")
+		for _, warning := range plan.Warnings {
+			cmd.Printf("- %s\n", warning)
+		}
+	}
+}
+
+func fallbackString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 type llamaRunDefaults struct {
