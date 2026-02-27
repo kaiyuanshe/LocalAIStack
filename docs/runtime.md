@@ -173,3 +173,11 @@ The runtime model balances:
 * Predictability and flexibility
 
 LocalAIStack treats execution as infrastructure, not automation.
+
+---
+
+## 15. Related Docs
+
+For smart model run tuning and operational flags, see:
+
+* [`docs/smart_run_p2.md`](./smart_run_p2.md)
