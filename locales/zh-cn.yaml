@@ -13,8 +13,13 @@ Detect hardware capabilities: 检测硬件功能
 Download a model: 下载一个模型。
 Download missing tokenizer/config files: 下载缺失的标记器（tokenizer）文件和配置文件。
 'Error: %v': 错误：%v
+Fail immediately when planner cannot generate a valid plan: 当规划器无法生成有效的计划时，应立即失败。
+Fail model run if smart-run cannot obtain valid LLM advice: 如果 smart-run 无法获取有效的 LLM 建议，则模型运行失败。
+Filter by category (auth/rate_limit/timeout/network/command_exit/...): 按类别筛选（auth/rate_limit/timeout/network/command_exit/...）
+Filter by phase (install_planner/config_planner/smart_run/module_install/model_run): 按阶段进行筛选（install_planner/config_planner/smart_run/module_install/model_run）
 Force removal without confirmation: 强制移除，无需确认。
 GPU layers for llama.cpp (-1 = auto): '`lama.cpp` 中的 GPU 层（-1 表示自动选择）'
+Generate module configuration plan: 生成模块配置计划
 Generate the autocompletion script for bash: |-
     以下是一个简单的 Bash 自动补全脚本示例：
 
@@ -335,12 +340,14 @@ Help about any command: 关于任何命令的帮助信息
 : "“Help”功能可以为应用程序中的任何命令提供帮助。  \n只需输入 `localaistack help [命令路径]` 即可获取详细信息。"
 Host to bind llama.cpp server: 需要绑定 llama.cpp 服务器的主机
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
+Inspect failure handling records: 检查故障处理记录。
 Install a module: 安装一个模块。
 'Installing module: %s': 正在安装模块：%s
 JSON object passed to llama.cpp --chat-template-kwargs (e.g. '{"enable_thinking":false}'): '传递给 llama.cpp 的 JSON 对象（例如：`{"enable_thinking": false}`）'
 List all available modules: 列出所有可用的模块。
 List available LLM providers: 以下是可用的大型语言模型（LLM）提供商列表：
 List downloaded models: 已下载的模型列表
+List recent failure records: 列出最近的故障记录
 LocalAIStack - Local AI workstation management: LocalAIStack – 本地人工智能工作站管理
 ? LocalAIStack is an open, modular software stack for building and operating local AI workstations. It provides unified control over AI development environments, inference runtimes, models, and applications.
 : LocalAIStack 是一个开源的、模块化的软件栈，用于构建和运行本地人工智能工作站。它提供了对人工智能开发环境、推理运行时、模型以及应用程序的统一管理功能。
@@ -348,6 +355,7 @@ Manage AI models: 管理人工智能模型
 Manage LLM providers: 管理大型语言模型（LLM）提供商
 Manage services: 管理服务
 Manage software modules: 管理软件模块
+Maximum number of failure events: 最大失败事件数量
 Maximum number of results per source: 每个来源的最大结果数量
 Micro batch size for llama.cpp (0 = auto): '`lama.cpp` 的微批次大小（0 表示自动选择）：'
 Min-p sampling for llama.cpp (0-1): '`lama.cpp` 中的 Min-p 采样（范围：0-1）'
@@ -355,9 +363,25 @@ Module %s installed successfully.: 模块 %s 安装成功。
 Module %s purged successfully.: 模块 %s 已成功清除。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module install failed: %s': 模块安装失败：%s
+Optional model id to include in planning context: （可选的模型ID，用于纳入规划流程中）
+Output format for plan display (text|json): "**计划显示格式（文本|JSON）**  \n\n**文本格式：**  \n```\n计划名称：%s  \n开始日期：%d  \n结束日期：%d  \n任务列表：  \n- 任务1：%q  \n- 任务2：%q  \n- 任务3：%q  \n...  \n备注：  \n- 重要提示：%s  \n- 需要关注的事项：%s  \n```  \n\n**JSON格式：**  \n```json\n{\n  \"planName\": \"%s\",\n  \"startDate\": \"%d\",\n  \"endDate\": \"%d\",\n  \"tasks\": [\n    {\n      \"taskId\": 1,\n      \"taskName\": \"%q\",\n      \"status\": \"已完成\"\n    },\n    {\n      \"taskId\": 2,\n      \"taskName\": \"%q\",\n      \"status\": \"进行中\"\n    },\n    {\n      \"taskId\": 3,\n      \"taskName\": \"%q\",\n      \"status\": \"待处理\"\n    },\n    // 其他任务\n  ],\n  \"remarks\": [\n    \"重要提示：%s\",\n    \"需要关注的事项：%s\"\n  ]\n}\n```"
+'Output format: text|json': |-
+    ```text
+    | text     | json         |
+    |---------|-------------|
+    | 这是一个示例文本。| {"text": "这是一个示例文本。"} |
+    | %s 会被替换为具体的值。| {"s": "具体的值"} |
+    | 行号在转换后可能会丢失。| {"line_break": "转换后可能会丢失行号。"} |
+    | 注意：某些特殊字符可能需要额外的处理。| {"note": "注意：某些特殊字符可能需要额外的处理。"} |
+    ```
+Persist config plan to ~/.localaistack/config-plans/<module>.json: 将配置计划保存到 `~/.localaistack/config-plans/<module>.json` 文件中。
 Port to bind llama.cpp server: 用于将代码绑定到 llama.cpp 服务器的端口。
 Preferred interaction language: 首选的交互语言
 Presence penalty for llama.cpp: lama.cpp 文件中存在的“惩罚机制”（即某些代码或设计导致的负面影响）
+Print generated plan without saving: 打印生成的计划，无需保存。
+Print planner source and reason: 打印计划器的源代码及其编写原因。
+Print smart-run planner source and fallback reason: 打印 Smart-Run 规划器的源代码以及采用备用方案（fallback solution）的原因。
+Print the final runtime command without launching the process: 仅打印最终的运行时命令，而不要实际启动该进程。
 Purge a module: “Purge a module” 的意思是“删除或清除某个模块”。
 'Purging module: %s': 正在清理模块：%s
 Remove a downloaded model: 删除已下载的模型
@@ -366,6 +390,7 @@ Run a local model: 运行一个本地模型。
 Run module-specific settings: 运行模块特定的设置
 Sampling temperature for llama.cpp: '`lama.cpp` 文件中的采样温度'
 Search for models: 搜索模型
+Show one failure event with suggested actions: 显示一个失败事件，并提供相应的建议措施。
 Show system information: 显示系统信息
 SiliconFlow API key: SiliconFlow API密钥
 Source of the model (ollama, huggingface, modelscope): 模型的来源（ollama、huggingface、modelscope）
@@ -386,17 +411,21 @@ Translation timeout in seconds: 翻译超时时间（以秒为单位）
 Uninstall a module: 卸载一个模块
 'Uninstalling module: %s': 正在卸载模块：%s
 Update a module: 更新一个模块
+Use LLM to refine runtime parameters from hardware and model context: 使用大型语言模型（LLM）根据硬件和模型上下文来优化运行时参数。
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
+help for config-plan: 关于 `config-plan` 的帮助信息：
 help for download: 关于下载的帮助信息
 help for install: 安装帮助
 help for list: 关于列表的帮助信息
 help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"
 help for run: 关于如何运行的帮助
 help for search: 搜索帮助
+help for show: "关于“show”的帮助信息：  \n（由于“show”是一个非常通用的词汇，其具体含义和用法取决于上下文，因此这里只能提供一个基本的解释。）  \n“Show”通常用于表示“显示”或“展示”某物或信息。例如：  \n- “Please show me the document.”（请把文件给我看看。）  \n- “The program will show the results after processing.”（程序处理完成后会显示结果。）  \n如果需要更具体的帮助，请提供更多的上下文或信息！"
 help for uninstall: 关于卸载的帮助：
 'install step %s failed: %w': 安装步骤 %s 失败：%w
+module %q not found: 模块 %q 未找到。
 vLLM GPU memory utilization (0-1, safetensors only): vLLM GPU内存利用率（0-1，仅包括安全传感器数据）
 vLLM max model length (safetensors only): vLLM的最大模型长度（仅限使用安全张量（safetensors））
 verbose output: 详细输出（verbose output）
