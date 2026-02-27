@@ -17,10 +17,14 @@ import (
 func newInitCommand() *cobra.Command {
 	var apiKey string
 	var language string
-	var provider string
-	var model string
-	var baseURL string
-	var timeoutSeconds int
+	var assistantProvider string
+	var assistantModel string
+	var assistantBaseURL string
+	var assistantTimeoutSeconds int
+	var translationProvider string
+	var translationModel string
+	var translationBaseURL string
+	var translationTimeoutSeconds int
 	var configPath string
 
 	initCmd := &cobra.Command{
@@ -66,12 +70,16 @@ func newInitCommand() *cobra.Command {
 			}
 
 			setNestedValue(settings, apiKey, "llm", "api_key")
-			setNestedValue(settings, provider, "llm", "provider")
-			setNestedValue(settings, baseURL, "llm", "base_url")
+			setNestedValue(settings, assistantProvider, "llm", "provider")
+			setNestedValue(settings, assistantModel, "llm", "model")
+			setNestedValue(settings, assistantBaseURL, "llm", "base_url")
+			setNestedValue(settings, assistantTimeoutSeconds, "llm", "timeout_seconds")
 			setNestedValue(settings, language, "i18n", "language")
-			setNestedValue(settings, provider, "i18n", "translation", "provider")
-			setNestedValue(settings, model, "i18n", "translation", "model")
-			setNestedValue(settings, timeoutSeconds, "i18n", "translation", "timeout_seconds")
+			setNestedValue(settings, translationProvider, "i18n", "translation", "provider")
+			setNestedValue(settings, translationModel, "i18n", "translation", "model")
+			setNestedValue(settings, apiKey, "i18n", "translation", "api_key")
+			setNestedValue(settings, translationBaseURL, "i18n", "translation", "base_url")
+			setNestedValue(settings, translationTimeoutSeconds, "i18n", "translation", "timeout_seconds")
 
 			if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
 				return err
@@ -104,10 +112,22 @@ func newInitCommand() *cobra.Command {
 	initCmd.Flags().StringVar(&configPath, "config-path", "", i18n.T("config file path (default is ~/.localaistack/config.yaml)"))
 	initCmd.Flags().StringVar(&apiKey, "api-key", "", i18n.T("SiliconFlow API key"))
 	initCmd.Flags().StringVar(&language, "language", "", i18n.T("Preferred interaction language"))
-	initCmd.Flags().StringVar(&provider, "provider", "siliconflow", i18n.T("Translation provider"))
-	initCmd.Flags().StringVar(&model, "model", "tencent/Hunyuan-MT-7B", i18n.T("Translation model"))
-	initCmd.Flags().StringVar(&baseURL, "base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Translation API base URL"))
-	initCmd.Flags().IntVar(&timeoutSeconds, "timeout-seconds", 30, i18n.T("Translation timeout in seconds"))
+	initCmd.Flags().StringVar(&assistantProvider, "assistant-provider", "siliconflow", i18n.T("Assistant provider"))
+	initCmd.Flags().StringVar(&assistantModel, "assistant-model", "deepseek-ai/DeepSeek-V3.2", i18n.T("Assistant model"))
+	initCmd.Flags().StringVar(&assistantBaseURL, "assistant-base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Assistant API base URL"))
+	initCmd.Flags().IntVar(&assistantTimeoutSeconds, "assistant-timeout-seconds", 30, i18n.T("Assistant timeout in seconds"))
+	initCmd.Flags().StringVar(&translationProvider, "translation-provider", "siliconflow", i18n.T("Translation provider"))
+	initCmd.Flags().StringVar(&translationModel, "translation-model", "tencent/Hunyuan-MT-7B", i18n.T("Translation model"))
+	initCmd.Flags().StringVar(&translationBaseURL, "translation-base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Translation API base URL"))
+	initCmd.Flags().IntVar(&translationTimeoutSeconds, "translation-timeout-seconds", 30, i18n.T("Translation timeout in seconds"))
+	initCmd.Flags().StringVar(&translationProvider, "provider", "siliconflow", i18n.T("Translation provider"))
+	initCmd.Flags().StringVar(&translationModel, "model", "tencent/Hunyuan-MT-7B", i18n.T("Translation model"))
+	initCmd.Flags().StringVar(&translationBaseURL, "base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Translation API base URL"))
+	initCmd.Flags().IntVar(&translationTimeoutSeconds, "timeout-seconds", 30, i18n.T("Translation timeout in seconds"))
+	_ = initCmd.Flags().MarkDeprecated("provider", "use --translation-provider")
+	_ = initCmd.Flags().MarkDeprecated("model", "use --translation-model")
+	_ = initCmd.Flags().MarkDeprecated("base-url", "use --translation-base-url")
+	_ = initCmd.Flags().MarkDeprecated("timeout-seconds", "use --translation-timeout-seconds")
 
 	return initCmd
 }

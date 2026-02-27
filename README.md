@@ -26,7 +26,9 @@ make build
 
 效果：
 * 创建一个配置文件： `$HOME/.localaistack/config.yaml`
-* 输入：SiliconFlow API Key，系统会使用硅基流动的免费的翻译大模型。
+* 输入：SiliconFlow API Key，系统默认使用两个模型：
+  * 翻译模型：`tencent/Hunyuan-MT-7B`
+  * 智能助手模型：`deepseek-ai/DeepSeek-V3.2`（可修改）
 * 输入：首选语言，你可以输入zh-CN，或者任何你喜欢的语言。
 
 ```bash
@@ -84,4 +86,3 @@ comfyui-las --listen 0.0.0.0 --port 8188
 
 效果：安装并启动ComfyUI，并使用z_image_turbo模型。
 需要下载配套的[JSON文件](https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_z_image_turbo.json)
-

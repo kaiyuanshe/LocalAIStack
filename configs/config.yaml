@@ -29,7 +29,7 @@ runtime:
 
 llm:
   provider: siliconflow
-  model: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+  model: "deepseek-ai/DeepSeek-V3.2"
   api_key: ""
   base_url: "https://api.siliconflow.cn/v1/chat/completions"
   timeout_seconds: 30
