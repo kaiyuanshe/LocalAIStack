@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,8 +69,26 @@ type installExpect struct {
 }
 
 type llmInstallPlan struct {
-	Mode  string   `json:"mode"`
-	Steps []string `json:"steps"`
+	Mode         string   `json:"mode"`
+	Steps        []string `json:"steps"`
+	Reason       string   `json:"reason,omitempty"`
+	RiskLevel    string   `json:"risk_level,omitempty"`
+	FallbackHint string   `json:"fallback_hint,omitempty"`
+}
+
+type installPlannerInput struct {
+	ModuleName     string                   `json:"module_name"`
+	CurrentMode    string                   `json:"current_mode"`
+	AvailableModes []string                 `json:"available_modes"`
+	Steps          []installPlannerStepHint `json:"steps"`
+}
+
+type installPlannerStepHint struct {
+	ID       string `json:"id"`
+	Category string `json:"category"`
+	Tool     string `json:"tool"`
+	Intent   string `json:"intent,omitempty"`
+	Command  string `json:"command,omitempty"`
 }
 
 func Install(name string) error {
@@ -106,24 +125,12 @@ func Install(name string) error {
 		return i18n.Errorf("install plan for module %q has no steps for mode %q", normalized, mode)
 	}
 
-	planMode := mode
 	planSteps := steps
 	if cfg, cfgErr := config.LoadConfig(); cfgErr == nil {
-		if llmPlan, err := interpretInstallPlanWithLLM(cfg.LLM, normalized, string(raw), mode, steps); err == nil {
-			if strings.TrimSpace(llmPlan.Mode) != "" {
-				planMode = strings.TrimSpace(llmPlan.Mode)
-			}
-			if env["LLAMA_CUDA"] == "1" && planMode != mode {
-				planMode = mode
-			}
-			if planMode != mode {
-				if modeSteps, ok := spec.Install[planMode]; ok && len(modeSteps) > 0 {
-					steps = modeSteps
-				}
-			}
-			planSteps = filterStepsByID(steps, llmPlan.Steps)
-			if len(planSteps) == 0 {
-				planSteps = steps
+		if llmPlan, err := interpretInstallPlanWithLLM(cfg.LLM, normalized, spec, mode, steps); err == nil {
+			_, resolvedSteps, applyErr := applyLLMInstallPlan(spec, mode, steps, env, llmPlan)
+			if applyErr == nil {
+				planSteps = resolvedSteps
 			}
 		}
 	}
@@ -203,7 +210,7 @@ func selectInstallModeForSystem(moduleName string, spec moduleInstallSpec) (stri
 	return mode, env
 }
 
-func interpretInstallPlanWithLLM(cfg config.LLMConfig, moduleName, installYAML, mode string, steps []installStep) (llmInstallPlan, error) {
+func interpretInstallPlanWithLLM(cfg config.LLMConfig, moduleName string, spec moduleInstallSpec, mode string, steps []installStep) (llmInstallPlan, error) {
 	registry, err := llm.NewRegistryFromConfig(cfg)
 	if err != nil {
 		return llmInstallPlan{}, err
@@ -213,18 +220,23 @@ func interpretInstallPlanWithLLM(cfg config.LLMConfig, moduleName, installYAML, 
 		return llmInstallPlan{}, err
 	}
 
-	stepIDs := make([]string, 0, len(steps))
-	for _, step := range steps {
-		stepIDs = append(stepIDs, step.ID)
+	input := buildInstallPlannerInput(moduleName, spec, mode, steps)
+	inputPayload, err := json.Marshal(input)
+	if err != nil {
+		return llmInstallPlan{}, err
 	}
 
-	prompt := fmt.Sprintf(`You are installing module %s.
-Given the following INSTALL.yaml, choose the install mode and step IDs to execute.
-Only return JSON with keys "mode" and "steps". "steps" must be an array of step IDs.
-Current selected mode: %s
-Available step IDs: %s
-INSTALL.yaml:
-%s`, moduleName, mode, strings.Join(stepIDs, ", "), installYAML)
+	prompt := fmt.Sprintf(`You are an install planner for LocalAIStack.
+Only return valid JSON and nothing else.
+Required JSON schema:
+{"mode":"<mode>","steps":["<step-id>"],"reason":"<short reason>","risk_level":"low|medium|high","fallback_hint":"<optional>"}
+Rules:
+- mode must be one of available_modes.
+- steps must only contain IDs listed in steps.
+- preserve service-related steps when relevant.
+- prefer safe, idempotent execution.
+Planner input:
+%s`, string(inputPayload))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.TimeoutSeconds)*time.Second)
 	defer cancel()
@@ -245,17 +257,222 @@ INSTALL.yaml:
 }
 
 func parseLLMInstallPlan(text string) (llmInstallPlan, error) {
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start == -1 || end == -1 || end <= start {
+	payload := extractFirstJSONObject(text)
+	if payload == "" {
 		return llmInstallPlan{}, i18n.Errorf("LLM response did not include JSON")
 	}
-	payload := text[start : end+1]
+
 	var plan llmInstallPlan
 	if err := json.Unmarshal([]byte(payload), &plan); err != nil {
 		return llmInstallPlan{}, err
 	}
+	plan.Mode = strings.TrimSpace(plan.Mode)
+	plan.Steps = dedupeStepIDs(plan.Steps)
 	return plan, nil
+}
+
+func buildInstallPlannerInput(moduleName string, spec moduleInstallSpec, mode string, steps []installStep) installPlannerInput {
+	availableModes := collectAvailableInstallModes(spec)
+	hints := make([]installPlannerStepHint, 0, len(steps))
+	for _, step := range steps {
+		hints = append(hints, installPlannerStepHint{
+			ID:       strings.TrimSpace(step.ID),
+			Category: classifyInstallStep(step),
+			Tool:     strings.TrimSpace(step.Tool),
+			Intent:   strings.TrimSpace(step.Intent),
+			Command:  strings.TrimSpace(step.Command),
+		})
+	}
+	return installPlannerInput{
+		ModuleName:     moduleName,
+		CurrentMode:    mode,
+		AvailableModes: availableModes,
+		Steps:          hints,
+	}
+}
+
+func collectAvailableInstallModes(spec moduleInstallSpec) []string {
+	modeSet := make(map[string]bool)
+	for _, mode := range spec.InstallModes {
+		trimmed := strings.TrimSpace(mode)
+		if trimmed != "" {
+			modeSet[trimmed] = true
+		}
+	}
+	for mode := range spec.Install {
+		trimmed := strings.TrimSpace(mode)
+		if trimmed != "" {
+			modeSet[trimmed] = true
+		}
+	}
+	modes := make([]string, 0, len(modeSet))
+	for mode := range modeSet {
+		modes = append(modes, mode)
+	}
+	sort.Strings(modes)
+	return modes
+}
+
+func classifyInstallStep(step installStep) string {
+	if isServiceStep(step) {
+		return "service"
+	}
+	if strings.EqualFold(strings.TrimSpace(step.Tool), "template") {
+		return "configure"
+	}
+
+	combined := strings.ToLower(strings.TrimSpace(step.ID + " " + step.Intent + " " + step.Command))
+	switch {
+	case strings.Contains(combined, "apt-get install"),
+		strings.Contains(combined, "apt install"),
+		strings.Contains(combined, "yum install"),
+		strings.Contains(combined, "dnf install"),
+		strings.Contains(combined, "pip install"),
+		strings.Contains(combined, "uv pip install"),
+		strings.Contains(combined, "install deps"),
+		strings.Contains(combined, "dependency"):
+		return "dependency"
+	case strings.Contains(combined, "wget "),
+		strings.Contains(combined, "curl "),
+		strings.Contains(combined, "git clone"),
+		strings.Contains(combined, "hf download"),
+		strings.Contains(combined, "ollama pull"),
+		strings.Contains(combined, "download"):
+		return "download"
+	case strings.Contains(combined, "cmake"),
+		strings.Contains(combined, "make "),
+		strings.Contains(combined, "go build"),
+		strings.Contains(combined, "cargo build"),
+		strings.Contains(combined, "python setup.py"),
+		strings.Contains(combined, "source install"),
+		strings.Contains(combined, "install source"),
+		strings.Contains(combined, "source"):
+		return "source_build"
+	case strings.Contains(combined, "binary"),
+		strings.Contains(combined, "install_binary"),
+		strings.Contains(combined, "install binary"):
+		return "binary_install"
+	default:
+		return "configure"
+	}
+}
+
+func applyLLMInstallPlan(spec moduleInstallSpec, defaultMode string, defaultSteps []installStep, env map[string]string, llmPlan llmInstallPlan) (string, []installStep, error) {
+	resolvedMode := defaultMode
+	candidateMode := strings.TrimSpace(llmPlan.Mode)
+	if candidateMode != "" {
+		if env["LLAMA_CUDA"] == "1" && candidateMode != defaultMode {
+			candidateMode = defaultMode
+		}
+		if _, ok := spec.Install[candidateMode]; !ok {
+			return defaultMode, defaultSteps, i18n.Errorf("LLM returned unsupported mode %q", candidateMode)
+		}
+		resolvedMode = candidateMode
+	}
+
+	stepsForMode := defaultSteps
+	if resolvedMode != defaultMode {
+		modeSteps := spec.Install[resolvedMode]
+		if len(modeSteps) == 0 {
+			return defaultMode, defaultSteps, i18n.Errorf("resolved mode %q has no steps", resolvedMode)
+		}
+		stepsForMode = modeSteps
+	}
+
+	if unknown := unknownStepIDs(stepsForMode, llmPlan.Steps); len(unknown) > 0 {
+		return defaultMode, defaultSteps, i18n.Errorf("LLM returned unknown step IDs: %s", strings.Join(unknown, ", "))
+	}
+
+	selected := filterStepsByID(stepsForMode, llmPlan.Steps)
+	if len(selected) == 0 {
+		selected = stepsForMode
+	}
+	selected = ensureServiceSteps(selected, stepsForMode)
+
+	return resolvedMode, selected, nil
+}
+
+func unknownStepIDs(steps []installStep, ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	allowed := make(map[string]bool, len(steps))
+	for _, step := range steps {
+		allowed[strings.TrimSpace(step.ID)] = true
+	}
+	unknown := make([]string, 0)
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		if !allowed[trimmed] {
+			unknown = append(unknown, trimmed)
+		}
+	}
+	return unknown
+}
+
+func dedupeStepIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(ids))
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func extractFirstJSONObject(text string) string {
+	start := -1
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := 0; i < len(text); i++ {
+		ch := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
+				return text[start : i+1]
+			}
+		}
+	}
+
+	return ""
 }
 
 func filterStepsByID(steps []installStep, ids []string) []installStep {
