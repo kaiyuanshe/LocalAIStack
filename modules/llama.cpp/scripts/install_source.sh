@@ -26,6 +26,21 @@ has_nvidia_gpu() {
   command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
 }
 
+pick_gnu_compiler_pair() {
+  local version
+  for version in 10 11 12 13; do
+    if [[ -x "/usr/bin/gcc-${version}" && -x "/usr/bin/g++-${version}" ]]; then
+      echo "/usr/bin/gcc-${version};/usr/bin/g++-${version}"
+      return 0
+    fi
+  done
+  if command -v gcc >/dev/null 2>&1 && command -v g++ >/dev/null 2>&1; then
+    echo "$(command -v gcc);$(command -v g++)"
+    return 0
+  fi
+  return 1
+}
+
 unique_semicolon_list() {
   local input="$1"
   local out="" seen=";" item
@@ -111,24 +126,26 @@ if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
   fi
   $SUDO sed -i 's/list(APPEND CUDA_FLAGS -compress-mode=${GGML_CUDA_COMPRESSION_MODE})/# disabled by LocalAIStack: compress-mode not supported on this toolchain/' \
     "$source_dir/ggml/src/ggml-cuda/CMakeLists.txt"
-  if [[ ! -x /usr/bin/gcc-10 ]]; then
-    echo "gcc-10 is required for CUDA 11.x builds. Install it with: sudo apt install -y gcc-10 g++-10" >&2
+  compiler_pair="$(pick_gnu_compiler_pair || true)"
+  if [[ -z "$compiler_pair" ]]; then
+    echo "CUDA build requested but no GCC/G++ compiler pair was found in PATH." >&2
     exit 1
   fi
 fi
 
 cmake_flags=("-DLLAMA_BUILD_SERVER=ON" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_CXX_STANDARD=17")
-if [[ -x /usr/bin/gcc-10 && -x /usr/bin/g++-10 ]]; then
-  cmake_flags+=("-DCMAKE_C_COMPILER=/usr/bin/gcc-10" "-DCMAKE_CXX_COMPILER=/usr/bin/g++-10")
+compiler_pair="$(pick_gnu_compiler_pair || true)"
+if [[ -n "$compiler_pair" ]]; then
+  c_compiler="${compiler_pair%%;*}"
+  cxx_compiler="${compiler_pair##*;}"
+  cmake_flags+=("-DCMAKE_C_COMPILER=${c_compiler}" "-DCMAKE_CXX_COMPILER=${cxx_compiler}")
 fi
 if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
   cmake_flags+=("-DCMAKE_CUDA_STANDARD=17")
   cmake_flags+=("-DGGML_CUDA=ON")
   cmake_flags+=("-DCMAKE_CUDA_COMPILER=/usr/bin/nvcc")
-  if [[ -x /usr/bin/g++-10 ]]; then
-    cmake_flags+=("-DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10")
-  else
-    cmake_flags+=("-DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-11")
+  if [[ -n "${cxx_compiler:-}" ]]; then
+    cmake_flags+=("-DCMAKE_CUDA_HOST_COMPILER=${cxx_compiler}")
   fi
   cmake_flags+=("-DCUDAToolkit_ROOT=/usr")
   cmake_flags+=("-DCUDA_TOOLKIT_ROOT_DIR=/usr")

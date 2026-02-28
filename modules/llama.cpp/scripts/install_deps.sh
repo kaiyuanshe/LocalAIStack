@@ -60,11 +60,25 @@ if [[ "$cuda_requested" -eq 1 ]]; then
 fi
 
 install_with_apt() {
+  local cuda_packages=()
+
   if ! $SUDO apt-get update -y; then
     echo "apt-get update failed; retrying with only the default sources.list (ignoring sources.list.d entries)." >&2
     $SUDO apt-get update -y -o Dir::Etc::sourceparts="-"
   fi
-  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${cuda_host_packages[@]}"
+
+  if [[ "${#cuda_host_packages[@]}" -gt 0 ]]; then
+    if apt-cache show gcc-10 >/dev/null 2>&1 && apt-cache show g++-10 >/dev/null 2>&1; then
+      cuda_packages=(gcc-10 g++-10)
+    elif apt-cache show gcc-11 >/dev/null 2>&1 && apt-cache show g++-11 >/dev/null 2>&1; then
+      cuda_packages=(gcc-11 g++-11)
+    else
+      # Newer distros (e.g. Ubuntu 24.04) may not ship gcc-10/g++-10 in default repos.
+      cuda_packages=(gcc g++)
+    fi
+  fi
+
+  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${cuda_packages[@]}"
 }
 
 install_with_dnf() {
