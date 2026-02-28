@@ -10,6 +10,7 @@ CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表�
 Check module installation status: 检查模块的安装状态。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动选择）'
 Detect hardware capabilities: 检测硬件功能
+Detecting hardware...: 正在检测硬件……
 Download a model: 下载一个模型。
 Download missing tokenizer/config files: 下载缺失的标记器（tokenizer）文件和配置文件。
 'Error: %v': 错误：%v
@@ -360,6 +361,7 @@ Maximum number of results per source: 每个来源的最大结果数量
 Micro batch size for llama.cpp (0 = auto): '`lama.cpp` 的微批次大小（0 表示自动选择）：'
 Min-p sampling for llama.cpp (0-1): '`lama.cpp` 中的 Min-p 采样（范围：0-1）'
 Module %s installed successfully.: 模块 %s 安装成功。
+Module %s is installed and healthy.: 模块 %s 已成功安装，并且运行状态正常。
 Module %s purged successfully.: 模块 %s 已成功清除。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module install failed: %s': 模块安装失败：%s
@@ -400,6 +402,7 @@ Specific GGUF filename to run: 要运行的具体 GGUF 文件名
 Specific model file to download (e.g. Q4_K_M.gguf): 需要下载的具体模型文件（例如：Q4_K_M.gguf）
 Start a service: 启动一个服务
 Stop a service: 停止一个服务
+'System information:': 系统信息：
 System management: 系统管理
 Tensor split for multi-GPU (comma-separated percentages): 用于多 GPU 的张量分割（百分比值以逗号分隔）
 Top-k sampling for llama.cpp (0 disables): 对于 llama.cpp，采用前 k 个样本的采样方法（k=0 时禁用该功能）。
@@ -415,8 +418,11 @@ Use LLM to refine runtime parameters from hardware and model context: 使用大�
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
+help for check: 关于检查的帮助信息
 help for config-plan: 关于 `config-plan` 的帮助信息：
+help for detect: 关于检测的帮助信息……
 help for download: 关于下载的帮助信息
+help for info: 需要帮助获取信息吗？
 help for install: 安装帮助
 help for list: 关于列表的帮助信息
 help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"

@@ -32,6 +32,11 @@ func init() {
 
 var llmRegistryFactory = llm.NewRegistryFromConfig
 
+const (
+	llamaRunRecommendationsRelativePath = "llama.cpp/RUN_PARAMS_RECOMMENDATIONS.md"
+	llamaRunRecommendationsMaxBytes     = 16 * 1024
+)
+
 func RegisterModuleCommands(rootCmd *cobra.Command) {
 	moduleCmd := &cobra.Command{
 		Use:     "module",
@@ -553,10 +558,10 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					Error:    retErr.Error(),
 					Message:  "model run failed",
 					Context: map[string]any{
-						"source_flag": source,
-						"smart_run":   smartRun,
-						"strict":      smartRunStrict,
-						"dry_run":     dryRun,
+						"source_flag":   source,
+						"smart_run":     smartRun,
+						"strict":        smartRunStrict,
+						"dry_run":       dryRun,
 						"planner_model": plannerModel,
 					},
 				})
@@ -1183,6 +1188,26 @@ func resolveBaseInfoPath() string {
 	return primary
 }
 
+func loadLlamaRunRecommendations() (string, error) {
+	modulesRoot, err := module.FindModulesRoot()
+	if err != nil {
+		return "", err
+	}
+	docPath := filepath.Join(modulesRoot, llamaRunRecommendationsRelativePath)
+	raw, err := os.ReadFile(docPath)
+	if err != nil {
+		return "", err
+	}
+	content := strings.TrimSpace(string(raw))
+	if content == "" {
+		return "", fmt.Errorf("empty recommendations document: %s", docPath)
+	}
+	if len(content) > llamaRunRecommendationsMaxBytes {
+		content = strings.TrimSpace(content[:llamaRunRecommendationsMaxBytes]) + "\n\n[truncated]"
+	}
+	return content, nil
+}
+
 func defaultLlamaRunParams(info system.BaseInfoSummary) llamaRunDefaults {
 	threads := info.CPUCores
 	if threads <= 0 {
@@ -1654,6 +1679,7 @@ func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, mode
 	if err != nil {
 		return llamaPlannerAdvice{}, err
 	}
+	recommendations, recommendationsErr := loadLlamaRunRecommendations()
 	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
 Return JSON only.
 Schema:
@@ -1663,6 +1689,9 @@ Rules:
 - do not add new fields.
 Input:
 %s`, string(payload))
+	if recommendationsErr == nil {
+		prompt = fmt.Sprintf("%s\nReference tuning guide for llama.cpp (markdown):\n```markdown\n%s\n```", prompt, recommendations)
+	}
 	resp, err := provider.Generate(ctx, llm.Request{
 		Prompt:  prompt,
 		Model:   cfg.Model,
