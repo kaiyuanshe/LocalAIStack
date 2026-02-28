@@ -72,7 +72,9 @@ detect_cuda_archs() {
 }
 
 cuda_requested=0
+cuda_explicit=0
 if [[ -n "${LLAMA_CUDA:-}" ]]; then
+  cuda_explicit=1
   if is_truthy "${LLAMA_CUDA}"; then
     cuda_requested=1
   elif is_falsy "${LLAMA_CUDA}"; then
@@ -120,8 +122,22 @@ else
 fi
 
 if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
-  if ! command -v nvcc >/dev/null 2>&1; then
-    echo "CUDA build requested but nvcc is not available. Install CUDA toolkit or run with LLAMA_CUDA=0." >&2
+  nvcc_path="$(command -v nvcc || true)"
+  if [[ -z "$nvcc_path" ]]; then
+    if [[ "$cuda_explicit" -eq 1 ]]; then
+      echo "CUDA build requested but nvcc is not available. Install CUDA toolkit or run with LLAMA_CUDA=0." >&2
+      exit 1
+    fi
+    echo "CUDA auto-enable skipped: NVIDIA GPU detected but CUDA toolkit (nvcc) is missing. Falling back to CPU-only build." >&2
+    export LLAMA_CUDA=0
+    cuda_requested=0
+  fi
+fi
+
+if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
+  cuda_root="$(cd "$(dirname "$nvcc_path")/.." && pwd)"
+  if [[ ! -d "$cuda_root" ]]; then
+    echo "Could not derive CUDA toolkit root from nvcc path: ${nvcc_path}" >&2
     exit 1
   fi
   $SUDO sed -i 's/list(APPEND CUDA_FLAGS -compress-mode=${GGML_CUDA_COMPRESSION_MODE})/# disabled by LocalAIStack: compress-mode not supported on this toolchain/' \
@@ -143,12 +159,12 @@ fi
 if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
   cmake_flags+=("-DCMAKE_CUDA_STANDARD=17")
   cmake_flags+=("-DGGML_CUDA=ON")
-  cmake_flags+=("-DCMAKE_CUDA_COMPILER=/usr/bin/nvcc")
+  cmake_flags+=("-DCMAKE_CUDA_COMPILER=${nvcc_path}")
   if [[ -n "${cxx_compiler:-}" ]]; then
     cmake_flags+=("-DCMAKE_CUDA_HOST_COMPILER=${cxx_compiler}")
   fi
-  cmake_flags+=("-DCUDAToolkit_ROOT=/usr")
-  cmake_flags+=("-DCUDA_TOOLKIT_ROOT_DIR=/usr")
+  cmake_flags+=("-DCUDAToolkit_ROOT=${cuda_root}")
+  cmake_flags+=("-DCUDA_TOOLKIT_ROOT_DIR=${cuda_root}")
   cmake_flags+=("-DGGML_CUDA_COMPRESSION_MODE=none")
   if [[ -n "${LLAMA_CUDA_ARCHS:-}" ]]; then
     cmake_flags+=("-DCMAKE_CUDA_ARCHITECTURES=${LLAMA_CUDA_ARCHS}")
