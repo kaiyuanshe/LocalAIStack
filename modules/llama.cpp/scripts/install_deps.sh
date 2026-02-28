@@ -60,7 +60,10 @@ if [[ "$cuda_requested" -eq 1 ]]; then
 fi
 
 install_with_apt() {
-  $SUDO apt-get update -y
+  if ! $SUDO apt-get update -y; then
+    echo "apt-get update failed; retrying with only the default sources.list (ignoring sources.list.d entries)." >&2
+    $SUDO apt-get update -y -o Dir::Etc::sourceparts="-"
+  fi
   $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${cuda_host_packages[@]}"
 }
 
