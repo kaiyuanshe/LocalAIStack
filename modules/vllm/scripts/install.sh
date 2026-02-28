@@ -9,7 +9,7 @@ fi
 
 PYTHON_BIN="${VLLM_PYTHON:-python3}"
 INSTALL_METHOD="${VLLM_INSTALL_METHOD:-auto}"
-BASE_INFO_PATH="${LAS_BASE_INFO_PATH:-$HOME/.localaistack/base_info.md}"
+BASE_INFO_PATH="${LAS_BASE_INFO_PATH:-$HOME/.localaistack/base_info.json}"
 
 has_avx512() {
   local flags=""

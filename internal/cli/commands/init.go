@@ -100,8 +100,8 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			baseInfoPath := filepath.Join(homeDir, ".localaistack", "base_info.md")
-			if err := system.WriteBaseInfo("", "md", true, false); err != nil {
+			baseInfoPath := filepath.Join(homeDir, ".localaistack", "base_info.json")
+			if err := system.WriteBaseInfo("", "json", true, false); err != nil {
 				return err
 			}
 			cmd.Printf("%s\n", i18n.T("Base system info written to %s", baseInfoPath))

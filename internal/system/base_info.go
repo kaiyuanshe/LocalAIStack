@@ -30,18 +30,13 @@ func WriteBaseInfo(outputPath, format string, force, appendMode bool) error {
 		return err
 	}
 
-	report, rawOutputs := info.CollectBaseInfoWithRaw(context.Background())
-	content, err := formatBaseInfo(report, rawOutputs, format)
+	report := info.CollectBaseInfo(context.Background())
+	content, err := formatBaseInfo(report, format)
 	if err != nil {
 		return err
 	}
 
-	flags := os.O_CREATE | os.O_WRONLY
-	if appendMode {
-		flags |= os.O_APPEND
-	} else {
-		flags |= os.O_TRUNC
-	}
+	flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 
 	file, err := os.OpenFile(resolvedPath, flags, 0o644)
 	if err != nil {
@@ -56,19 +51,35 @@ func WriteBaseInfo(outputPath, format string, force, appendMode bool) error {
 	return nil
 }
 
-func formatBaseInfo(report info.BaseInfo, rawOutputs []info.RawCommandOutput, format string) (string, error) {
-	switch strings.ToLower(format) {
-	case "md", "markdown":
-		return info.RenderBaseInfoMarkdown(report, rawOutputs), nil
-	case "json":
-		payload, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			return "", i18n.Errorf("marshal json: %w", err)
-		}
-		return string(payload) + "\n", nil
-	default:
+func formatBaseInfo(report info.BaseInfo, format string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(format))
+	if normalized != "" && normalized != "json" {
 		return "", i18n.Errorf("unsupported format: %s", format)
 	}
+	payload := struct {
+		CPU struct {
+			Model string `json:"model"`
+			Cores int    `json:"cores"`
+		} `json:"cpu"`
+		GPU    string `json:"gpu"`
+		Memory string `json:"memory"`
+		Disk   struct {
+			Total     string `json:"total"`
+			Available string `json:"available"`
+		} `json:"disk"`
+	}{}
+	payload.CPU.Model = report.CPUModel
+	payload.CPU.Cores = report.CPUCores
+	payload.GPU = report.GPU
+	payload.Memory = report.MemoryTotal
+	payload.Disk.Total = report.DiskTotal
+	payload.Disk.Available = report.DiskAvailable
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", i18n.Errorf("marshal json: %w", err)
+	}
+	return string(raw) + "\n", nil
 }
 
 func resolveOutputPath(path string) (string, error) {
@@ -81,7 +92,7 @@ func resolveOutputPath(path string) (string, error) {
 		return "", i18n.Errorf("create base directory: %w", err)
 	}
 	if path == "" {
-		return filepath.Join(baseDir, "base_info.md"), nil
+		return filepath.Join(baseDir, "base_info.json"), nil
 	}
 	if path == "~" || strings.HasPrefix(path, "~/") {
 		if path == "~" {

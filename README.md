@@ -54,7 +54,7 @@ make build
 * 默认双模型职责：
   * 翻译模型：`tencent/Hunyuan-MT-7B`
   * 智能助手模型：`deepseek-ai/DeepSeek-V3.2`（可修改）
-* 生成硬件基础信息（`base_info.md`），用于 install planner / config planner / smart-run
+* 生成硬件基础信息（`base_info.json`），用于 install planner / config planner / smart-run
 
 ### 3.2 模块管理（module）
 

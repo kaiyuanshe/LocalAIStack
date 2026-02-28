@@ -200,6 +200,65 @@ func TestSuggestAdviceWithStubProvider(t *testing.T) {
 	}
 }
 
+func TestSuggestAdvicePromptIncludesRecommendationsAndBaseInfo(t *testing.T) {
+	baseInfoJSON := `{"cpu":{"model":"Test CPU","cores":12},"gpu":"Test GPU","memory":"32768000 kB","disk":{"total":"1.0 TB","available":"900.0 GB"}}`
+
+	var prompts []string
+	original := llmRegistryFactory
+	originalRecommendationsLoader := llamaRunRecommendationsLoader
+	originalBaseInfoLoader := baseInfoPromptLoader
+	defer func() {
+		llmRegistryFactory = original
+		llamaRunRecommendationsLoader = originalRecommendationsLoader
+		baseInfoPromptLoader = originalBaseInfoLoader
+	}()
+	llmRegistryFactory = func(cfg config.LLMConfig) (*llm.Registry, error) {
+		registry := llm.NewRegistry()
+		if err := registry.Register(captureLLMProvider{capture: &prompts}); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	}
+	llamaRunRecommendationsLoader = func() (string, error) {
+		return "# tuned defaults", nil
+	}
+	baseInfoPromptLoader = func() (string, error) {
+		return baseInfoJSON, nil
+	}
+
+	cfg := config.LLMConfig{Provider: "capture", Model: "deepseek-ai/DeepSeek-V3.2", TimeoutSeconds: 5}
+	info := system.BaseInfoSummary{CPUCores: 8, MemoryKB: 32 * 1024 * 1024}
+	if _, err := suggestLlamaAdvice(context.Background(), cfg, "demo", "/tmp/demo.gguf", info, llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}, llamaBatchParams{BatchSize: 256, UBatchSize: 128}, llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20}, ""); err != nil {
+		t.Fatalf("suggestLlamaAdvice returned error: %v", err)
+	}
+	if _, err := suggestVLLMAdvice(context.Background(), cfg, "demo", "org/repo", info, vllmRunDefaults{maxModelLen: 4096, gpuMemUtil: 0.88}, false); err != nil {
+		t.Fatalf("suggestVLLMAdvice returned error: %v", err)
+	}
+
+	if len(prompts) != 2 {
+		t.Fatalf("expected 2 prompts, got %d", len(prompts))
+	}
+
+	llamaPrompt := prompts[0]
+	if !strings.Contains(llamaPrompt, "Reference tuning guide for llama.cpp") {
+		t.Fatalf("expected llama prompt to include run recommendations")
+	}
+	if !strings.Contains(llamaPrompt, "Collected base hardware info (json):") {
+		t.Fatalf("expected llama prompt to include base_info.json")
+	}
+	if !strings.Contains(llamaPrompt, `"cpu":{"model":"Test CPU","cores":12}`) {
+		t.Fatalf("expected llama prompt to include base_info.json content")
+	}
+
+	vllmPrompt := prompts[1]
+	if !strings.Contains(vllmPrompt, "Collected base hardware info (json):") {
+		t.Fatalf("expected vllm prompt to include base_info.json")
+	}
+	if !strings.Contains(vllmPrompt, `"gpu":"Test GPU"`) {
+		t.Fatalf("expected vllm prompt to include base_info.json content")
+	}
+}
+
 func TestEvaluateSmartRunOutcome(t *testing.T) {
 	source, reason, fatal := evaluateSmartRunOutcome(false, nil, false)
 	if source != "static" || reason == "" || fatal != nil {
@@ -247,3 +306,17 @@ func (p stubLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Respo
 func intPtr(v int) *int           { return &v }
 func floatPtr(v float64) *float64 { return &v }
 func boolPtr(v bool) *bool        { return &v }
+
+type captureLLMProvider struct {
+	capture *[]string
+}
+
+func (p captureLLMProvider) Name() string { return "capture" }
+
+func (p captureLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Response, error) {
+	*p.capture = append(*p.capture, req.Prompt)
+	if strings.Contains(req.Prompt, `"runtime":"llama.cpp"`) {
+		return llm.Response{Text: `{"llama":{"ctx_size":8192}}`}, nil
+	}
+	return llm.Response{Text: `{"vllm":{"max_model_len":6144}}`}, nil
+}

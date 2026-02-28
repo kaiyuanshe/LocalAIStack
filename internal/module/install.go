@@ -887,13 +887,13 @@ func formatEnv(values map[string]string) []string {
 func resolveBaseInfoPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(".", "base_info.md")
+		return filepath.Join(".", "base_info.json")
 	}
-	primary := filepath.Join(home, ".localaistack", "base_info.md")
+	primary := filepath.Join(home, ".localaistack", "base_info.json")
 	if _, err := os.Stat(primary); err == nil {
 		return primary
 	}
-	alternate := filepath.Join(home, ".localiastack", "base_info.md")
+	alternate := filepath.Join(home, ".localiastack", "base_info.json")
 	if _, err := os.Stat(alternate); err == nil {
 		return alternate
 	}

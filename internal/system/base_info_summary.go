@@ -1,6 +1,7 @@
 package system
 
 import (
+	"encoding/json"
 	"os"
 	"regexp"
 	"strconv"
@@ -18,6 +19,10 @@ func LoadBaseInfoSummary(path string) (BaseInfoSummary, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return BaseInfoSummary{}, err
+	}
+
+	if summary, ok := parseJSONBaseInfoSummary(raw); ok {
+		return summary, nil
 	}
 
 	var summary BaseInfoSummary
@@ -58,6 +63,101 @@ func LoadBaseInfoSummary(path string) (BaseInfoSummary, error) {
 		summary.GPUCount = 1
 	}
 	return summary, nil
+}
+
+func parseJSONBaseInfoSummary(raw []byte) (BaseInfoSummary, bool) {
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return BaseInfoSummary{}, false
+	}
+
+	var compact struct {
+		CPU struct {
+			Cores int `json:"cores"`
+		} `json:"cpu"`
+		GPU    string `json:"gpu"`
+		Memory string `json:"memory"`
+	}
+	if err := json.Unmarshal(raw, &compact); err == nil {
+		summary := BaseInfoSummary{
+			CPUCores: compact.CPU.Cores,
+			MemoryKB: parseMemoryToKB(compact.Memory),
+		}
+		setGPUSummary(&summary, compact.GPU)
+		if summary.CPUCores > 0 || summary.MemoryKB > 0 || summary.GPUCount > 0 || strings.TrimSpace(compact.GPU) != "" {
+			return summary, true
+		}
+	}
+
+	var legacy struct {
+		CPUCores    int    `json:"cpu_cores"`
+		GPU         string `json:"gpu"`
+		MemoryTotal string `json:"memory_total"`
+	}
+	if err := json.Unmarshal(raw, &legacy); err == nil {
+		summary := BaseInfoSummary{
+			CPUCores: legacy.CPUCores,
+			MemoryKB: parseMemoryToKB(legacy.MemoryTotal),
+		}
+		setGPUSummary(&summary, legacy.GPU)
+		if summary.CPUCores > 0 || summary.MemoryKB > 0 || summary.GPUCount > 0 || strings.TrimSpace(legacy.GPU) != "" {
+			return summary, true
+		}
+	}
+
+	return BaseInfoSummary{}, false
+}
+
+func parseMemoryToKB(value string) int64 {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return 0
+	}
+	re := regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*([kmgt]?i?b|bytes?)`)
+	match := re.FindStringSubmatch(trimmed)
+	if len(match) < 3 {
+		return 0
+	}
+
+	number, err := strconv.ParseFloat(match[1], 64)
+	if err != nil {
+		return 0
+	}
+
+	unit := strings.ToLower(strings.TrimSpace(match[2]))
+	switch unit {
+	case "b", "byte", "bytes":
+		return int64(number / 1024)
+	case "kb", "kib":
+		return int64(number)
+	case "mb", "mib":
+		return int64(number * 1024)
+	case "gb", "gib":
+		return int64(number * 1024 * 1024)
+	case "tb", "tib":
+		return int64(number * 1024 * 1024 * 1024)
+	default:
+		return 0
+	}
+}
+
+func setGPUSummary(summary *BaseInfoSummary, raw string) {
+	entries := parseGPUEntries(raw)
+	if len(entries) == 0 {
+		return
+	}
+	summary.GPUName = entries[0]
+	summary.GPUCount = len(entries)
+}
+
+func parseGPUEntries(raw string) []string {
+	candidates := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == ';'
+	})
+	entries := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		addGPUEntry(&entries, candidate)
+	}
+	return entries
 }
 
 func extractMarkdownSection(content, sectionName string) string {

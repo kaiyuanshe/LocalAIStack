@@ -97,6 +97,29 @@ processor : 2`
 	}
 }
 
+func TestLoadBaseInfoSummary_CompactJSON(t *testing.T) {
+	content := `{"cpu":{"model":"Intel Xeon","cores":24},"gpu":"Tesla V100-SXM2-16GB; Tesla V100-SXM2-16GB","memory":"33554432 kB","disk":{"total":"1.0 TB","available":"800.0 GB"}}`
+
+	path := writeTempBaseInfo(t, content)
+	summary, err := LoadBaseInfoSummary(path)
+	if err != nil {
+		t.Fatalf("LoadBaseInfoSummary returned error: %v", err)
+	}
+
+	if summary.CPUCores != 24 {
+		t.Fatalf("expected CPUCores=24, got %d", summary.CPUCores)
+	}
+	if summary.MemoryKB != 33554432 {
+		t.Fatalf("expected MemoryKB=33554432, got %d", summary.MemoryKB)
+	}
+	if summary.GPUName != "Tesla V100-SXM2-16GB" {
+		t.Fatalf("expected GPUName=Tesla V100-SXM2-16GB, got %q", summary.GPUName)
+	}
+	if summary.GPUCount != 2 {
+		t.Fatalf("expected GPUCount=2, got %d", summary.GPUCount)
+	}
+}
+
 func writeTempBaseInfo(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

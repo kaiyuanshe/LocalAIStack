@@ -31,10 +31,13 @@ func init() {
 }
 
 var llmRegistryFactory = llm.NewRegistryFromConfig
+var llamaRunRecommendationsLoader = loadLlamaRunRecommendations
+var baseInfoPromptLoader = loadBaseInfoPrompt
 
 const (
 	llamaRunRecommendationsRelativePath = "llama.cpp/RUN_PARAMS_RECOMMENDATIONS.md"
 	llamaRunRecommendationsMaxBytes     = 16 * 1024
+	baseInfoPromptMaxBytes              = 16 * 1024
 )
 
 func RegisterModuleCommands(rootCmd *cobra.Command) {
@@ -1175,13 +1178,13 @@ type vllmRunDefaults struct {
 func resolveBaseInfoPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(".", "base_info.md")
+		return filepath.Join(".", "base_info.json")
 	}
-	primary := filepath.Join(home, ".localaistack", "base_info.md")
+	primary := filepath.Join(home, ".localaistack", "base_info.json")
 	if _, err := os.Stat(primary); err == nil {
 		return primary
 	}
-	alternate := filepath.Join(home, ".localiastack", "base_info.md")
+	alternate := filepath.Join(home, ".localiastack", "base_info.json")
 	if _, err := os.Stat(alternate); err == nil {
 		return alternate
 	}
@@ -1204,6 +1207,22 @@ func loadLlamaRunRecommendations() (string, error) {
 	}
 	if len(content) > llamaRunRecommendationsMaxBytes {
 		content = strings.TrimSpace(content[:llamaRunRecommendationsMaxBytes]) + "\n\n[truncated]"
+	}
+	return content, nil
+}
+
+func loadBaseInfoPrompt() (string, error) {
+	path := resolveBaseInfoPath()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	content := strings.TrimSpace(string(raw))
+	if content == "" {
+		return "", fmt.Errorf("empty base info file: %s", path)
+	}
+	if len(content) > baseInfoPromptMaxBytes {
+		content = strings.TrimSpace(content[:baseInfoPromptMaxBytes]) + "\n\n[truncated]"
 	}
 	return content, nil
 }
@@ -1679,7 +1698,7 @@ func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, mode
 	if err != nil {
 		return llamaPlannerAdvice{}, err
 	}
-	recommendations, recommendationsErr := loadLlamaRunRecommendations()
+	recommendations, recommendationsErr := llamaRunRecommendationsLoader()
 	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
 Return JSON only.
 Schema:
@@ -1691,6 +1710,9 @@ Input:
 %s`, string(payload))
 	if recommendationsErr == nil {
 		prompt = fmt.Sprintf("%s\nReference tuning guide for llama.cpp (markdown):\n```markdown\n%s\n```", prompt, recommendations)
+	}
+	if baseInfoContent, baseInfoErr := baseInfoPromptLoader(); baseInfoErr == nil {
+		prompt = fmt.Sprintf("%s\nCollected base hardware info (json):\n```json\n%s\n```", prompt, baseInfoContent)
 	}
 	resp, err := provider.Generate(ctx, llm.Request{
 		Prompt:  prompt,
@@ -1748,6 +1770,9 @@ Rules:
 - do not add new fields.
 Input:
 %s`, string(payload))
+	if baseInfoContent, baseInfoErr := baseInfoPromptLoader(); baseInfoErr == nil {
+		prompt = fmt.Sprintf("%s\nCollected base hardware info (json):\n```json\n%s\n```", prompt, baseInfoContent)
+	}
 	resp, err := provider.Generate(ctx, llm.Request{
 		Prompt:  prompt,
 		Model:   cfg.Model,
