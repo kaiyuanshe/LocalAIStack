@@ -1,13 +1,20 @@
+'%.1f %cB': '%.1f %cB'
 '%s': '%s'
+'%s [%s]: ': '%s [%s]:'
+'%s kB': '%s 千字节'
+'%s; stderr: %s': '%s；标准错误输出（stderr）：%s'
+"- %s\t%s": "- %s\t%s"
 Allow vLLM to execute model custom code from repo (safetensors only): 允许 vLLM 从仓库中执行模型的自定义代码（仅限使用 safetensors）。
 Assistant API base URL: 助理 API 基础 URL
 Assistant model: 辅助模型
 Assistant provider: 助理服务提供商（Assistant Service Provider）
 Assistant timeout in seconds: 助手的超时时间（以秒为单位）
 Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model: 自动调整 llama.cpp 的参数（--batch-size 和 --ubatch-size），以适应硬件配置和模型特性。
+Base system info written to %s: 基础系统信息已写入到 %s 文件中。
 Batch size for llama.cpp (0 = auto): '`lama.cpp` 的批量处理大小（0 表示自动选择）'
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表示自动分配线程）：'
 Check module installation status: 检查模块的安装状态。
+Configuration written to %s: 配置信息已写入到 %s 文件中。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动选择）'
 Detect hardware capabilities: 检测硬件功能
 Detecting hardware...: 正在检测硬件……
@@ -343,6 +350,7 @@ Host to bind llama.cpp server: 需要绑定 llama.cpp 服务器的主机
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
 Inspect failure handling records: 检查故障处理记录。
 Install a module: 安装一个模块。
+Installed: 已安装
 'Installing module: %s': 正在安装模块：%s
 JSON object passed to llama.cpp --chat-template-kwargs (e.g. '{"enable_thinking":false}'): '传递给 llama.cpp 的 JSON 对象（例如：`{"enable_thinking": false}`）'
 List all available modules: 列出所有可用的模块。
@@ -356,6 +364,7 @@ Manage AI models: 管理人工智能模型
 Manage LLM providers: 管理大型语言模型（LLM）提供商
 Manage services: 管理服务
 Manage software modules: 管理软件模块
+'Manageable modules:': 可管理的模块：
 Maximum number of failure events: 最大失败事件数量
 Maximum number of results per source: 每个来源的最大结果数量
 Micro batch size for llama.cpp (0 = auto): '`lama.cpp` 的微批次大小（0 表示自动选择）：'
@@ -365,6 +374,7 @@ Module %s is installed and healthy.: 模块 %s 已成功安装，并且运行状
 Module %s purged successfully.: 模块 %s 已成功清除。
 Module %s uninstalled successfully.: 模块 %s 已成功卸载。
 'Module install failed: %s': 模块安装失败：%s
+Not installed: 未安装。
 Optional model id to include in planning context: （可选的模型ID，用于纳入规划流程中）
 Output format for plan display (text|json): "**计划显示格式（文本|JSON）**  \n\n**文本格式：**  \n```\n计划名称：%s  \n开始日期：%d  \n结束日期：%d  \n任务列表：  \n- 任务1：%q  \n- 任务2：%q  \n- 任务3：%q  \n...  \n备注：  \n- 重要提示：%s  \n- 需要关注的事项：%s  \n```  \n\n**JSON格式：**  \n```json\n{\n  \"planName\": \"%s\",\n  \"startDate\": \"%d\",\n  \"endDate\": \"%d\",\n  \"tasks\": [\n    {\n      \"taskId\": 1,\n      \"taskName\": \"%q\",\n      \"status\": \"已完成\"\n    },\n    {\n      \"taskId\": 2,\n      \"taskName\": \"%q\",\n      \"status\": \"进行中\"\n    },\n    {\n      \"taskId\": 3,\n      \"taskName\": \"%q\",\n      \"status\": \"待处理\"\n    },\n    // 其他任务\n  ],\n  \"remarks\": [\n    \"重要提示：%s\",\n    \"需要关注的事项：%s\"\n  ]\n}\n```"
 'Output format: text|json': |-
@@ -379,6 +389,7 @@ Output format for plan display (text|json): "**计划显示格式（文本|JSON�
 Persist config plan to ~/.localaistack/config-plans/<module>.json: 将配置计划保存到 `~/.localaistack/config-plans/<module>.json` 文件中。
 Port to bind llama.cpp server: 用于将代码绑定到 llama.cpp 服务器的端口。
 Preferred interaction language: 首选的交互语言
+Preferred language: 首选语言
 Presence penalty for llama.cpp: lama.cpp 文件中存在的“惩罚机制”（即某些代码或设计导致的负面影响）
 Print generated plan without saving: 打印生成的计划，无需保存。
 Print planner source and reason: 打印计划器的源代码及其编写原因。
@@ -394,6 +405,7 @@ Sampling temperature for llama.cpp: '`lama.cpp` 文件中的采样温度'
 Search for models: 搜索模型
 Show one failure event with suggested actions: 显示一个失败事件，并提供相应的建议措施。
 Show system information: 显示系统信息
+SiliconFlow API Key: SiliconFlow API 密钥
 SiliconFlow API key: SiliconFlow API密钥
 Source of the model (ollama, huggingface, modelscope): 模型的来源（ollama、huggingface、modelscope）
 Source to download from (ollama, huggingface, modelscope): 可以从以下来源下载模型：ollama、huggingface、modelscope。
@@ -418,11 +430,13 @@ Use LLM to refine runtime parameters from hardware and model context: 使用大�
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
+docker=%s; podman=%s: docker=%s; podman=%s
 help for check: 关于检查的帮助信息
 help for config-plan: 关于 `config-plan` 的帮助信息：
 help for detect: 关于检测的帮助信息……
 help for download: 关于下载的帮助信息
 help for info: 需要帮助获取信息吗？
+help for init: "关于 `init` 的帮助信息：  \n`init` 是一个用于初始化系统或程序的命令或函数。它的具体用途取决于上下文。在 Linux 系统中，`init` 是一个系统初始化进程（System Initialization Process），负责在系统启动时加载必要的驱动程序、服务以及设置系统环境。在某些编程语言中，`init` 可能是一个用于初始化对象的函数或方法。  \n\n如果您需要更多关于 `init` 的详细信息，请提供更多的上下文或具体的使用场景，以便我能给出更准确的帮助。"
 help for install: 安装帮助
 help for list: 关于列表的帮助信息
 help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"
@@ -431,7 +445,10 @@ help for search: 搜索帮助
 help for show: "关于“show”的帮助信息：  \n（由于“show”是一个非常通用的词汇，其具体含义和用法取决于上下文，因此这里只能提供一个基本的解释。）  \n“Show”通常用于表示“显示”或“展示”某物或信息。例如：  \n- “Please show me the document.”（请把文件给我看看。）  \n- “The program will show the results after processing.”（程序处理完成后会显示结果。）  \n如果需要更具体的帮助，请提供更多的上下文或信息！"
 help for uninstall: 关于卸载的帮助：
 'install step %s failed: %w': 安装步骤 %s 失败：%w
+module %q does not provide a check script: 模块 %q 没有提供相应的检查脚本。
 module %q not found: 模块 %q 未找到。
+'unknown (%s): %s': 未知（%s）：%s
+'unknown: %s': 未知：%s
 vLLM GPU memory utilization (0-1, safetensors only): vLLM GPU内存利用率（0-1，仅包括安全传感器数据）
 vLLM max model length (safetensors only): vLLM的最大模型长度（仅限使用安全张量（safetensors））
 verbose output: 详细输出（verbose output）
