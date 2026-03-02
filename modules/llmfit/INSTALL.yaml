@@ -1,0 +1,101 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: llmfit
+category: tools
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - native
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - bash
+  - curl
+
+description:
+  purpose: Install the llmfit CLI
+  scope:
+    - install
+    - verify
+    - rollback
+    - uninstall
+    - purge
+
+dependencies:
+  system:
+    - bash
+    - curl
+    - ca-certificates
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+
+decision_matrix:
+  default: native
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing llmfit binary
+      tool: shell
+      command: command -v llmfit
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Remove llmfit binary
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Remove llmfit binary and local data
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  native:
+    - id: S10
+      intent: Install llmfit via official install script
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        bin: /usr/local/bin/llmfit
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: n/a
+    auth: n/a
+  privileges:
+    requires_sudo: true

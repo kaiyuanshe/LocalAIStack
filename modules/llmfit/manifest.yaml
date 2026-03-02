@@ -1,0 +1,26 @@
+name: llmfit
+category: tool
+version: 0.5.2
+description: llmfit CLI for optimizing prompts, contexts, and model interactions
+license: MIT
+
+hardware:
+  cpu:
+    cores_min: 2
+  memory:
+    ram_min: 2GB
+
+dependencies:
+  system:
+    - bash
+    - curl
+    - ca-certificates
+
+runtime:
+  modes:
+    - native
+  preferred: native
+
+interfaces:
+  provides:
+    - llm_optimization_cli
