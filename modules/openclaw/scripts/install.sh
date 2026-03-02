@@ -8,7 +8,7 @@ else
 fi
 
 NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
-OPENCLAW_NODE_MIN_MAJOR="${OPENCLAW_NODE_MIN_MAJOR:-18}"
+OPENCLAW_NODE_MIN_MAJOR="${OPENCLAW_NODE_MIN_MAJOR:-22}"
 OPENCLAW_NODE_VERSION="${OPENCLAW_NODE_VERSION:-lts/*}"
 NVM_INSTALL_VERSION="${NVM_INSTALL_VERSION:-v0.40.3}"
 
@@ -56,13 +56,14 @@ is_node_version_compatible() {
 }
 
 ensure_nodejs_for_npm() {
-  if is_node_version_compatible && command -v npm >/dev/null 2>&1; then
-    return 0
-  fi
-
   load_nvm || install_nvm || return 1
 
-  if is_node_version_compatible && command -v npm >/dev/null 2>&1; then
+  # Prefer nvm default when available so we don't stay on system node.
+  if [[ "$(nvm version default 2>/dev/null || true)" != "N/A" ]]; then
+    nvm use default >/dev/null 2>&1 || true
+  fi
+
+  if is_node_version_compatible && command -v npm >/dev/null 2>&1 && [[ "$(command -v node)" == "${NVM_DIR}"/* ]]; then
     return 0
   fi
 
@@ -169,12 +170,14 @@ main() {
     return 0
   fi
 
-  if install_from_script "$install_url" 2>/dev/null || true; then
-    :
+  if ! has_openclaw; then
+    install_from_npm || true
   fi
 
   if ! has_openclaw; then
-    install_from_npm || true
+    if install_from_script "$install_url" 2>/dev/null || true; then
+      :
+    fi
   fi
 
   if ! has_openclaw; then
