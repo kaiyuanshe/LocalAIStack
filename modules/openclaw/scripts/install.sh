@@ -7,12 +7,73 @@ else
   SUDO=""
 fi
 
+NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
+OPENCLAW_NODE_MIN_MAJOR="${OPENCLAW_NODE_MIN_MAJOR:-18}"
+OPENCLAW_NODE_VERSION="${OPENCLAW_NODE_VERSION:-lts/*}"
+NVM_INSTALL_VERSION="${NVM_INSTALL_VERSION:-v0.40.3}"
+
 ensure_usr_local_bin() {
   $SUDO mkdir -p /usr/local/bin
 }
 
 has_openclaw() {
   command -v openclaw >/dev/null 2>&1
+}
+
+load_nvm() {
+  if [[ -s "${NVM_DIR}/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    source "${NVM_DIR}/nvm.sh"
+    command -v nvm >/dev/null 2>&1
+    return $?
+  fi
+
+  return 1
+}
+
+install_nvm() {
+  curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_INSTALL_VERSION}/install.sh" | bash
+  load_nvm
+}
+
+node_major_version() {
+  local node_version
+  node_version="$(node -v 2>/dev/null || true)"
+  node_version="${node_version#v}"
+  printf '%s\n' "${node_version%%.*}"
+}
+
+is_node_version_compatible() {
+  if ! command -v node >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local major
+  major="$(node_major_version)"
+
+  [[ "$major" =~ ^[0-9]+$ ]] || return 1
+  (( major >= OPENCLAW_NODE_MIN_MAJOR ))
+}
+
+ensure_nodejs_for_npm() {
+  if is_node_version_compatible && command -v npm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  load_nvm || install_nvm || return 1
+
+  if is_node_version_compatible && command -v npm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  nvm install "$OPENCLAW_NODE_VERSION"
+  nvm use "$OPENCLAW_NODE_VERSION"
+
+  if ! is_node_version_compatible || ! command -v npm >/dev/null 2>&1; then
+    return 1
+  fi
+
+  return 0
 }
 
 install_from_script() {
@@ -26,11 +87,13 @@ install_from_script() {
 }
 
 install_from_npm() {
-  if ! command -v npm >/dev/null 2>&1; then
-    return 1
-  fi
+  ensure_nodejs_for_npm || return 1
 
-  $SUDO npm install -g @openclaw/cli || $SUDO npm install -g openclaw-cli
+  if [[ "$(command -v npm)" == "${NVM_DIR}"/* ]]; then
+    npm install -g @openclaw/cli || npm install -g openclaw-cli
+  else
+    $SUDO npm install -g @openclaw/cli || $SUDO npm install -g openclaw-cli
+  fi
 }
 
 install_from_pip() {
