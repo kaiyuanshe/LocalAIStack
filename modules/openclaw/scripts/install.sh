@@ -89,22 +89,52 @@ install_from_script() {
 install_from_npm() {
   ensure_nodejs_for_npm || return 1
 
-  if [[ "$(command -v npm)" == "${NVM_DIR}"/* ]]; then
-    npm install -g @openclaw/cli || npm install -g openclaw-cli
-  else
-    $SUDO npm install -g @openclaw/cli || $SUDO npm install -g openclaw-cli
-  fi
+  local npm_pkgs=(
+    "openclaw"
+    "@openclaw/cli"
+    "openclaw-cli"
+  )
+
+  local pkg
+  for pkg in "${npm_pkgs[@]}"; do
+    if [[ "$(command -v npm)" == "${NVM_DIR}"/* ]]; then
+      npm install -g "$pkg" && return 0
+    else
+      $SUDO npm install -g "$pkg" && return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_python_openclaw_wrapper() {
+  has_openclaw && return 0
+
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 -c 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("openclaw") else 1)' || return 1
+
+  local user_bin="${HOME}/.local/bin"
+  mkdir -p "$user_bin"
+
+  cat > "${user_bin}/openclaw" <<'EOF'
+#!/usr/bin/env bash
+exec python3 -m openclaw "$@"
+EOF
+  chmod +x "${user_bin}/openclaw"
+
+  [[ -x "${user_bin}/openclaw" ]]
 }
 
 install_from_pip() {
   if command -v pipx >/dev/null 2>&1; then
     pipx install openclaw || pipx upgrade openclaw || true
-    return 0
+    has_openclaw && return 0
   fi
 
   if command -v python3 >/dev/null 2>&1; then
     python3 -m pip install --user --upgrade openclaw
-    return 0
+    has_openclaw && return 0
+    ensure_python_openclaw_wrapper && return 0
   fi
 
   return 1
