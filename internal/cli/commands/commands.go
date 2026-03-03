@@ -498,13 +498,16 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	}
 
 	runCmd := &cobra.Command{
-		Use:   "run [model-id]",
+		Use:   "run [model-id] [gguf-file-or-quant]",
 		Short: "Run a local model",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) (retErr error) {
 			modelID := args[0]
 			source, _ := cmd.Flags().GetString("source")
 			selectedFile, _ := cmd.Flags().GetString("file")
+			if selectedFile == "" && len(args) == 2 {
+				selectedFile = args[1]
+			}
 			threads, _ := cmd.Flags().GetInt("threads")
 			ctxSize, _ := cmd.Flags().GetInt("ctx-size")
 			gpuLayers, _ := cmd.Flags().GetInt("n-gpu-layers")
@@ -2074,17 +2077,41 @@ func hasExplicitSource(input string) bool {
 
 func resolveGGUFFile(modelDir string, ggufFiles []string, selected string) (string, bool, error) {
 	if selected != "" {
-		modelPath := selected
+		selectedTrimmed := strings.TrimSpace(selected)
+		modelPath := selectedTrimmed
 		if !filepath.IsAbs(modelPath) {
-			modelPath = filepath.Join(modelDir, selected)
+			modelPath = filepath.Join(modelDir, selectedTrimmed)
 		}
-		if _, err := os.Stat(modelPath); err != nil {
-			return "", false, fmt.Errorf("GGUF file not found: %s", modelPath)
+		if info, err := os.Stat(modelPath); err == nil {
+			if info.IsDir() {
+				dirGGUF, walkErr := modelmanager.FindGGUFFiles(modelPath)
+				if walkErr != nil {
+					return "", false, walkErr
+				}
+				chosen, chooseErr := selectPreferredGGUFFile(dirGGUF)
+				if chooseErr != nil {
+					return "", false, chooseErr
+				}
+				return chosen, false, nil
+			}
+			if !strings.EqualFold(filepath.Ext(modelPath), ".gguf") {
+				return "", false, fmt.Errorf("selected file is not a GGUF model: %s", modelPath)
+			}
+			return modelPath, false, nil
+		} else if !os.IsNotExist(err) {
+			return "", false, err
 		}
-		if !strings.EqualFold(filepath.Ext(modelPath), ".gguf") {
-			return "", false, fmt.Errorf("selected file is not a GGUF model: %s", modelPath)
+
+		// Support quantization selectors like "Q4_K_M".
+		candidates := filterGGUFFilesBySelector(ggufFiles, selectedTrimmed)
+		if len(candidates) == 0 {
+			return "", false, fmt.Errorf("GGUF file or selector not found: %s", selectedTrimmed)
 		}
-		return modelPath, false, nil
+		chosen, err := selectPreferredGGUFFile(candidates)
+		if err != nil {
+			return "", false, err
+		}
+		return chosen, false, nil
 	}
 
 	chosen, err := selectPreferredGGUFFile(ggufFiles)
@@ -2095,6 +2122,10 @@ func resolveGGUFFile(modelDir string, ggufFiles []string, selected string) (stri
 }
 
 func selectPreferredGGUFFile(files []string) (string, error) {
+	if chosen, ok := pickFirstShard(files); ok {
+		return chosen, nil
+	}
+
 	preferred := []string{
 		"q4_k_m",
 		"q4_k_s",
@@ -2120,6 +2151,42 @@ func selectPreferredGGUFFile(files []string) (string, error) {
 	}
 
 	return pickSmallestFile(files)
+}
+
+func filterGGUFFilesBySelector(files []string, selector string) []string {
+	normalized := strings.ToLower(strings.TrimSpace(selector))
+	if normalized == "" {
+		return nil
+	}
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalizedPath := string(os.PathSeparator) + normalized + string(os.PathSeparator)
+
+	var matched []string
+	for _, file := range files {
+		fileLower := strings.ToLower(file)
+		baseLower := strings.ToLower(filepath.Base(file))
+		baseLower = strings.ReplaceAll(baseLower, "-", "_")
+		fileLowerNorm := strings.ReplaceAll(fileLower, "-", "_")
+		if strings.Contains(fileLowerNorm, normalizedPath) || strings.Contains(baseLower, normalized) {
+			matched = append(matched, file)
+		}
+	}
+	return matched
+}
+
+func pickFirstShard(files []string) (string, bool) {
+	var firstShard []string
+	for _, file := range files {
+		name := strings.ToLower(filepath.Base(file))
+		if strings.Contains(name, "-00001-of-") {
+			firstShard = append(firstShard, file)
+		}
+	}
+	if len(firstShard) == 0 {
+		return "", false
+	}
+	sort.Strings(firstShard)
+	return firstShard[0], true
 }
 
 func pickSmallestFile(files []string) (string, error) {
