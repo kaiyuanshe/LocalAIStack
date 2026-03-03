@@ -51,8 +51,16 @@ install_from_source() {
   fi
 
   if ! command -v uv >/dev/null 2>&1; then
-    echo "uv is required for source installs. Install uv or use VLLM_INSTALL_METHOD=wheel." >&2
-    exit 1
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "curl is required to auto-install uv. Install curl or uv, or use VLLM_INSTALL_METHOD=wheel." >&2
+      exit 1
+    fi
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+    if ! command -v uv >/dev/null 2>&1; then
+      echo "uv install finished but uv is still not in PATH. Try: export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
+      exit 1
+    fi
   fi
 
   source_dir="${VLLM_SOURCE_DIR:-$HOME/vllm}"
@@ -78,7 +86,12 @@ if [[ "$INSTALL_METHOD" == "auto" ]]; then
   if has_avx512; then
     INSTALL_METHOD="wheel"
   else
-    INSTALL_METHOD="source"
+    if command -v git >/dev/null 2>&1 && command -v uv >/dev/null 2>&1; then
+      INSTALL_METHOD="source"
+    else
+      echo "auto mode fallback to wheel: source install requires both git and uv." >&2
+      INSTALL_METHOD="wheel"
+    fi
   fi
 fi
 
