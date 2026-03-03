@@ -82,6 +82,15 @@ install_from_source() {
   popd >/dev/null
 }
 
+install_from_wheel() {
+  venv_dir="${VLLM_VENV_DIR:-$HOME/.localaistack/venv/vllm}"
+  mkdir -p "$(dirname "$venv_dir")"
+  "$PYTHON_BIN" -m venv "$venv_dir"
+  "$venv_dir/bin/python" -m pip install --upgrade pip
+  "$venv_dir/bin/python" -m pip install "$wheel_url" --extra-index-url https://download.pytorch.org/whl/cpu
+  ensure_wrapper "$venv_dir/bin/vllm"
+}
+
 if [[ "$INSTALL_METHOD" == "auto" ]]; then
   if has_avx512; then
     INSTALL_METHOD="wheel"
@@ -140,5 +149,4 @@ PY
   wheel_url="https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/${wheel_name}"
 fi
 
-$SUDO "$PYTHON_BIN" -m pip install --upgrade pip
-$SUDO "$PYTHON_BIN" -m pip install "$wheel_url" --extra-index-url https://download.pytorch.org/whl/cpu
+install_from_wheel
