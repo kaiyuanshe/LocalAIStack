@@ -26,6 +26,7 @@ Environment variables:
 - `VLLM_SOURCE_DIR`: local path to clone into (default: `~/vllm`).
 - `VLLM_REPO_URL`: git repo URL (default: `https://github.com/vllm-project/vllm.git`).
 - `VLLM_PYTHON_VERSION`: Python version for `uv venv` (default: `3.12`).
+- `VLLM_PRECOMPILED_WHEEL_COMMIT`: override the precompiled-wheel commit lookup. If unset, the installer retries with `nightly` when the current `main` commit has no published metadata yet.
 
 The source install expects `git` and `uv` to be available in `PATH` and uses
 `VLLM_USE_PRECOMPILED=1 uv pip install --editable .` inside the cloned repo.

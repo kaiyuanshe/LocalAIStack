@@ -72,10 +72,17 @@ install_from_source() {
 
   pushd "$source_dir" >/dev/null
 
-  uv venv --python "${VLLM_PYTHON_VERSION:-3.12}" --seed
+  uv venv --allow-existing --python "${VLLM_PYTHON_VERSION:-3.12}" --seed
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  VLLM_USE_PRECOMPILED=1 uv pip install --editable .
+  if ! VLLM_USE_PRECOMPILED=1 uv pip install --editable .; then
+    if [[ -z "${VLLM_PRECOMPILED_WHEEL_COMMIT:-}" ]]; then
+      echo "source install failed while resolving the current precompiled wheel; retrying with nightly commit metadata" >&2
+      VLLM_USE_PRECOMPILED=1 VLLM_PRECOMPILED_WHEEL_COMMIT=nightly uv pip install --editable .
+    else
+      exit 1
+    fi
+  fi
 
   ensure_wrapper "$source_dir/.venv/bin/vllm"
 
