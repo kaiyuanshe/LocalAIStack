@@ -34,8 +34,9 @@ Translation model configuration is not used in smart run.
 
 1. `--smart-run` enables LLM advice
 2. `--smart-run-debug` prints planner source and fallback reason
-3. `--smart-run-strict` fails when advice cannot be obtained or parsed
-4. `--dry-run` prints final command and exits without launching runtime
+3. `--smart-run-refresh` ignores saved parameters and forces a fresh LLM request
+4. `--smart-run-strict` fails when advice cannot be obtained or parsed
+5. `--dry-run` prints final command and exits without launching runtime
 
 ---
 
@@ -44,8 +45,9 @@ Translation model configuration is not used in smart run.
 P2 applies parameters in this order:
 
 1. explicit user flags
-2. LLM advice (`--smart-run`)
-3. static defaults and auto-tuning
+2. saved smart-run parameters (`--smart-run`)
+3. LLM advice (`--smart-run` when no saved parameters exist, or when `--smart-run-refresh` is used)
+4. static defaults and auto-tuning
 
 This guarantees user intent is never silently overridden.
 
@@ -58,10 +60,12 @@ For `./build/las model run <model-id>`:
 1. resolve model source and local path
 2. detect runtime type (`safetensors` -> `vLLM`, `GGUF` -> `llama.cpp`)
 3. compute static baseline parameters
-4. if `--smart-run`, request LLM advice using baseline + hardware context
-5. validate and clamp advice values to safe ranges
-6. merge values according to precedence
-7. print or execute final command
+4. if `--smart-run`, first try loading the last saved smart-run parameters from local disk
+5. if no saved parameters exist, or if `--smart-run-refresh` is set, request LLM advice using baseline + hardware context
+6. validate and clamp advice values to safe ranges
+7. merge values according to precedence
+8. after the runtime process starts successfully, persist fresh LLM advice for the next run
+9. print or execute final command
 
 ---
 
@@ -87,6 +91,20 @@ Baseline verification:
 
 ```bash
 ./build/las model run <model-id> --smart-run --smart-run-debug --dry-run
+```
+
+Force a fresh LLM recommendation:
+
+```bash
+./build/las model run <model-id> --smart-run --smart-run-refresh --smart-run-debug --dry-run
+```
+
+Inspect persisted smart-run parameters:
+
+```bash
+./build/las model smart-run-cache list
+./build/las model smart-run-cache list <model-id>
+./build/las model smart-run-cache rm <model-id>
 ```
 
 Strict validation (LLM must succeed):

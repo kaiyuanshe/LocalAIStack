@@ -1,12 +1,16 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/llm"
 	"github.com/zhuangbiaowei/LocalAIStack/internal/system"
@@ -256,6 +260,147 @@ func TestSuggestAdvicePromptIncludesRecommendationsAndBaseInfo(t *testing.T) {
 	}
 	if !strings.Contains(vllmPrompt, `"gpu":"Test GPU"`) {
 		t.Fatalf("expected vllm prompt to include base_info.json content")
+	}
+}
+
+func TestSaveAndLoadSmartRunAdvice(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	advice := smartRunAdviceEnvelope{Llama: llamaPlannerAdvice{Threads: intPtr(16), CtxSize: intPtr(8192)}}
+	if err := saveSmartRunAdvice("llama.cpp", "demo/model", "Q4_K_M.gguf", advice); err != nil {
+		t.Fatalf("saveSmartRunAdvice returned error: %v", err)
+	}
+
+	loaded, err := loadSmartRunAdvice("llama.cpp", "demo/model", "Q4_K_M.gguf")
+	if err != nil {
+		t.Fatalf("loadSmartRunAdvice returned error: %v", err)
+	}
+	if loaded.Llama.Threads == nil || *loaded.Llama.Threads != 16 {
+		t.Fatalf("expected saved threads=16, got %+v", loaded.Llama.Threads)
+	}
+	if loaded.Llama.CtxSize == nil || *loaded.Llama.CtxSize != 8192 {
+		t.Fatalf("expected saved ctx_size=8192, got %+v", loaded.Llama.CtxSize)
+	}
+
+	path, err := smartRunAdvicePath("llama.cpp", "demo/model", "Q4_K_M.gguf")
+	if err != nil {
+		t.Fatalf("smartRunAdvicePath returned error: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected persisted advice file at %s: %v", path, err)
+	}
+	if !strings.Contains(path, filepath.Join(".localaistack", "smart-run")) {
+		t.Fatalf("expected advice path under .localaistack/smart-run, got %s", path)
+	}
+}
+
+func TestLoadSmartRunAdviceMissingFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, err := loadSmartRunAdvice("vllm", "demo/model", "org/repo")
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected os.ErrNotExist, got %v", err)
+	}
+}
+
+func TestEvaluateSmartRunOutcomeWithSourceUsesLocalReason(t *testing.T) {
+	source, reason, fatal := evaluateSmartRunOutcomeWithSource(true, "local", "Reused last saved smart-run parameters", nil, false)
+	if fatal != nil {
+		t.Fatalf("expected nil fatal error, got %v", fatal)
+	}
+	if source != "local" {
+		t.Fatalf("expected source local, got %s", source)
+	}
+	if reason != "Reused last saved smart-run parameters" {
+		t.Fatalf("unexpected reason: %s", reason)
+	}
+}
+
+func TestModelRunRefreshRequiresSmartRun(t *testing.T) {
+	root := &cobra.Command{Use: "las"}
+	RegisterModelCommands(root)
+
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"model", "run", "demo/model", "--smart-run-refresh"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected error when --smart-run-refresh is used without --smart-run")
+	}
+	if !strings.Contains(err.Error(), "smart-run-refresh requires --smart-run") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSmartRunCacheListCommand(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := saveSmartRunAdvice("llama.cpp", "demo/model", "Q4_K_M.gguf", smartRunAdviceEnvelope{
+		Llama: llamaPlannerAdvice{Threads: intPtr(12)},
+	}); err != nil {
+		t.Fatalf("saveSmartRunAdvice returned error: %v", err)
+	}
+	if err := saveSmartRunAdvice("vllm", "another/model", "org/repo", smartRunAdviceEnvelope{
+		VLLM: vllmPlannerAdvice{MaxModelLen: intPtr(4096)},
+	}); err != nil {
+		t.Fatalf("saveSmartRunAdvice returned error: %v", err)
+	}
+
+	root := &cobra.Command{Use: "las"}
+	RegisterModelCommands(root)
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"model", "smart-run-cache", "list", "demo/model"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("list command failed: %v", err)
+	}
+	text := buf.String()
+	if !strings.Contains(text, "demo/model") || !strings.Contains(text, "Q4_K_M.gguf") {
+		t.Fatalf("expected demo/model cache entry in output, got: %s", text)
+	}
+	if strings.Contains(text, "another/model") {
+		t.Fatalf("did not expect another/model entry in filtered output: %s", text)
+	}
+}
+
+func TestSmartRunCacheRemoveCommand(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := saveSmartRunAdvice("llama.cpp", "demo/model", "Q4_K_M.gguf", smartRunAdviceEnvelope{
+		Llama: llamaPlannerAdvice{Threads: intPtr(12)},
+	}); err != nil {
+		t.Fatalf("saveSmartRunAdvice returned error: %v", err)
+	}
+	if err := saveSmartRunAdvice("vllm", "demo/model", "org/repo", smartRunAdviceEnvelope{
+		VLLM: vllmPlannerAdvice{MaxModelLen: intPtr(4096)},
+	}); err != nil {
+		t.Fatalf("saveSmartRunAdvice returned error: %v", err)
+	}
+
+	root := &cobra.Command{Use: "las"}
+	RegisterModelCommands(root)
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"model", "smart-run-cache", "rm", "demo/model"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("rm command failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Removed 2 smart-run cache entries.") {
+		t.Fatalf("unexpected rm output: %s", buf.String())
+	}
+
+	entries, err := listSmartRunAdviceEntries("", "demo/model")
+	if err != nil {
+		t.Fatalf("listSmartRunAdviceEntries returned error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected no entries after rm, got %d", len(entries))
 	}
 }
 

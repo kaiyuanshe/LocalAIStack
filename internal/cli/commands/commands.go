@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,6 +39,7 @@ const (
 	llamaRunRecommendationsRelativePath = "llama.cpp/RUN_PARAMS_RECOMMENDATIONS.md"
 	llamaRunRecommendationsMaxBytes     = 16 * 1024
 	baseInfoPromptMaxBytes              = 16 * 1024
+	smartRunAdviceSchemaVersion         = 1
 )
 
 func RegisterModuleCommands(rootCmd *cobra.Command) {
@@ -516,6 +518,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			autoBatch, _ := cmd.Flags().GetBool("auto-batch")
 			smartRun, _ := cmd.Flags().GetBool("smart-run")
 			smartRunDebug, _ := cmd.Flags().GetBool("smart-run-debug")
+			smartRunRefresh, _ := cmd.Flags().GetBool("smart-run-refresh")
 			smartRunStrict, _ := cmd.Flags().GetBool("smart-run-strict")
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			host, _ := cmd.Flags().GetString("host")
@@ -566,6 +569,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					Context: map[string]any{
 						"source_flag":   source,
 						"smart_run":     smartRun,
+						"refresh":       smartRunRefresh,
 						"strict":        smartRunStrict,
 						"dry_run":       dryRun,
 						"planner_model": plannerModel,
@@ -590,6 +594,9 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			}
 			if smartRunStrict && !smartRun {
 				return fmt.Errorf("smart-run-strict requires --smart-run")
+			}
+			if smartRunRefresh && !smartRun {
+				return fmt.Errorf("smart-run-refresh requires --smart-run")
 			}
 
 			mgr := createModelManager()
@@ -679,22 +686,72 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
 				}
 				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
+				vllmSmartSource := ""
+				vllmSmartReason := ""
 				vllmSmartErr := error(nil)
-				if smartRun && cfg != nil {
-					advice, err := suggestVLLMAdvice(cmd.Context(), cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode)
-					if err == nil {
-						applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice, map[string]bool{
-							"max_model_len":          vllmMaxModelLenChanged,
-							"gpu_memory_utilization": vllmGpuMemUtilChanged,
-							"trust_remote_code":      vllmTrustRemoteCodeChanged,
-						})
+				var vllmAdviceToPersist *smartRunAdviceEnvelope
+				if smartRun {
+					if !smartRunRefresh {
+						if advice, err := loadSmartRunAdvice("vllm", modelID, modelRef); err == nil {
+							applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice.VLLM, map[string]bool{
+								"max_model_len":          vllmMaxModelLenChanged,
+								"gpu_memory_utilization": vllmGpuMemUtilChanged,
+								"trust_remote_code":      vllmTrustRemoteCodeChanged,
+							})
+							vllmSmartSource = "local"
+							vllmSmartReason = "Reused last saved smart-run parameters"
+						} else {
+							loadErr := err
+							if cfg != nil {
+								advice, err := suggestVLLMAdvice(cmd.Context(), cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode)
+								if err == nil {
+									applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice, map[string]bool{
+										"max_model_len":          vllmMaxModelLenChanged,
+										"gpu_memory_utilization": vllmGpuMemUtilChanged,
+										"trust_remote_code":      vllmTrustRemoteCodeChanged,
+									})
+									vllmSmartSource = "llm"
+									vllmSmartReason = "LLM advice applied"
+									vllmAdviceToPersist = &smartRunAdviceEnvelope{VLLM: advice}
+									if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+										vllmSmartReason = fmt.Sprintf("Saved params unavailable (%v); LLM advice applied", loadErr)
+									}
+								} else {
+									vllmSmartErr = err
+									if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+										vllmSmartErr = fmt.Errorf("load saved params: %v; llm advice failed: %w", loadErr, err)
+									}
+								}
+							} else if cfgLoadErr != nil {
+								vllmSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
+								if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+									vllmSmartErr = fmt.Errorf("load saved params: %v; load smart-run config: %w", loadErr, cfgLoadErr)
+								}
+							} else {
+								vllmSmartErr = loadErr
+							}
+						}
+					} else if cfg != nil {
+						advice, err := suggestVLLMAdvice(cmd.Context(), cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode)
+						if err == nil {
+							applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice, map[string]bool{
+								"max_model_len":          vllmMaxModelLenChanged,
+								"gpu_memory_utilization": vllmGpuMemUtilChanged,
+								"trust_remote_code":      vllmTrustRemoteCodeChanged,
+							})
+							vllmSmartSource = "llm"
+							vllmSmartReason = "LLM advice applied (refresh requested)"
+							vllmAdviceToPersist = &smartRunAdviceEnvelope{VLLM: advice}
+						} else {
+							vllmSmartErr = err
+						}
+					} else if cfgLoadErr != nil {
+						vllmSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
 					} else {
-						vllmSmartErr = err
+						vllmSmartErr = fmt.Errorf("smart-run refresh requires LLM configuration")
 					}
-				} else if smartRun && cfgLoadErr != nil {
-					vllmSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
 				}
-				vllmSmartSource, vllmSmartReason, vllmSmartFatal := evaluateSmartRunOutcome(smartRun, vllmSmartErr, smartRunStrict)
+				vllmSmartSource, vllmSmartReason, vllmSmartFatal := evaluateSmartRunOutcomeWithSource(smartRun, vllmSmartSource, vllmSmartReason, vllmSmartErr, smartRunStrict)
 				if smartRunDebug {
 					printSmartRunDebug(cmd, "vllm", vllmSmartSource, vllmSmartReason)
 				}
@@ -714,7 +771,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				runCmd.Stdout = cmd.OutOrStdout()
 				runCmd.Stderr = cmd.ErrOrStderr()
 				runCmd.Stdin = cmd.InOrStdin()
-				return runCmd.Run()
+				return startCommandAndPersistAdvice(cmd, runCmd, "vllm", modelID, modelRef, vllmAdviceToPersist)
 			}
 
 			modelPath, autoSelected, err := resolveGGUFFile(modelDir, ggufFiles, selectedFile)
@@ -761,35 +818,109 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				PresencePenalty: presencePenalty,
 				RepeatPenalty:   repeatPenalty,
 			}
+			llamaSmartSource := ""
+			llamaSmartReason := ""
 			llamaSmartErr := error(nil)
-			if smartRun && cfg != nil {
-				advice, err := suggestLlamaAdvice(cmd.Context(), cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
-					BatchSize:  resolvedBatch,
-					UBatchSize: resolvedUBatch,
-				}, sampling, chatTemplateKwargs)
-				if err == nil {
-					applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice, map[string]bool{
-						"threads":              threadsChanged,
-						"ctx_size":             ctxSizeChanged,
-						"n_gpu_layers":         gpuLayersChanged,
-						"tensor_split":         tensorSplitChanged,
-						"batch_size":           batchSizeChanged,
-						"ubatch_size":          ubatchSizeChanged,
-						"temperature":          temperatureChanged,
-						"top_p":                topPChanged,
-						"top_k":                topKChanged,
-						"min_p":                minPChanged,
-						"presence_penalty":     presencePenaltyChanged,
-						"repeat_penalty":       repeatPenaltyChanged,
-						"chat_template_kwargs": chatTemplateKwargsChanged,
-					})
+			var llamaAdviceToPersist *smartRunAdviceEnvelope
+			if smartRun {
+				selector := filepath.Base(modelPath)
+				if !smartRunRefresh {
+					if advice, err := loadSmartRunAdvice("llama.cpp", modelID, selector); err == nil {
+						applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice.Llama, map[string]bool{
+							"threads":              threadsChanged,
+							"ctx_size":             ctxSizeChanged,
+							"n_gpu_layers":         gpuLayersChanged,
+							"tensor_split":         tensorSplitChanged,
+							"batch_size":           batchSizeChanged,
+							"ubatch_size":          ubatchSizeChanged,
+							"temperature":          temperatureChanged,
+							"top_p":                topPChanged,
+							"top_k":                topKChanged,
+							"min_p":                minPChanged,
+							"presence_penalty":     presencePenaltyChanged,
+							"repeat_penalty":       repeatPenaltyChanged,
+							"chat_template_kwargs": chatTemplateKwargsChanged,
+						})
+						llamaSmartSource = "local"
+						llamaSmartReason = "Reused last saved smart-run parameters"
+					} else {
+						loadErr := err
+						if smartRun && cfg != nil {
+							advice, err := suggestLlamaAdvice(cmd.Context(), cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
+								BatchSize:  resolvedBatch,
+								UBatchSize: resolvedUBatch,
+							}, sampling, chatTemplateKwargs)
+							if err == nil {
+								applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice, map[string]bool{
+									"threads":              threadsChanged,
+									"ctx_size":             ctxSizeChanged,
+									"n_gpu_layers":         gpuLayersChanged,
+									"tensor_split":         tensorSplitChanged,
+									"batch_size":           batchSizeChanged,
+									"ubatch_size":          ubatchSizeChanged,
+									"temperature":          temperatureChanged,
+									"top_p":                topPChanged,
+									"top_k":                topKChanged,
+									"min_p":                minPChanged,
+									"presence_penalty":     presencePenaltyChanged,
+									"repeat_penalty":       repeatPenaltyChanged,
+									"chat_template_kwargs": chatTemplateKwargsChanged,
+								})
+								llamaSmartSource = "llm"
+								llamaSmartReason = "LLM advice applied"
+								llamaAdviceToPersist = &smartRunAdviceEnvelope{Llama: advice}
+								if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+									llamaSmartReason = fmt.Sprintf("Saved params unavailable (%v); LLM advice applied", loadErr)
+								}
+							} else {
+								llamaSmartErr = err
+								if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+									llamaSmartErr = fmt.Errorf("load saved params: %v; llm advice failed: %w", loadErr, err)
+								}
+							}
+						} else if cfgLoadErr != nil {
+							llamaSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
+							if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+								llamaSmartErr = fmt.Errorf("load saved params: %v; load smart-run config: %w", loadErr, cfgLoadErr)
+							}
+						} else {
+							llamaSmartErr = loadErr
+						}
+					}
+				} else if cfg != nil {
+					advice, err := suggestLlamaAdvice(cmd.Context(), cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
+						BatchSize:  resolvedBatch,
+						UBatchSize: resolvedUBatch,
+					}, sampling, chatTemplateKwargs)
+					if err == nil {
+						applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice, map[string]bool{
+							"threads":              threadsChanged,
+							"ctx_size":             ctxSizeChanged,
+							"n_gpu_layers":         gpuLayersChanged,
+							"tensor_split":         tensorSplitChanged,
+							"batch_size":           batchSizeChanged,
+							"ubatch_size":          ubatchSizeChanged,
+							"temperature":          temperatureChanged,
+							"top_p":                topPChanged,
+							"top_k":                topKChanged,
+							"min_p":                minPChanged,
+							"presence_penalty":     presencePenaltyChanged,
+							"repeat_penalty":       repeatPenaltyChanged,
+							"chat_template_kwargs": chatTemplateKwargsChanged,
+						})
+						llamaSmartSource = "llm"
+						llamaSmartReason = "LLM advice applied (refresh requested)"
+						llamaAdviceToPersist = &smartRunAdviceEnvelope{Llama: advice}
+					} else {
+						llamaSmartErr = err
+					}
+				} else if cfgLoadErr != nil {
+					llamaSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
 				} else {
-					llamaSmartErr = err
+					llamaSmartErr = fmt.Errorf("smart-run refresh requires LLM configuration")
 				}
-			} else if smartRun && cfgLoadErr != nil {
-				llamaSmartErr = fmt.Errorf("load smart-run config: %w", cfgLoadErr)
 			}
-			llamaSmartSource, llamaSmartReason, llamaSmartFatal := evaluateSmartRunOutcome(smartRun, llamaSmartErr, smartRunStrict)
+			llamaSmartSource, llamaSmartReason, llamaSmartFatal := evaluateSmartRunOutcomeWithSource(smartRun, llamaSmartSource, llamaSmartReason, llamaSmartErr, smartRunStrict)
 			if smartRunDebug {
 				printSmartRunDebug(cmd, "llama.cpp", llamaSmartSource, llamaSmartReason)
 			}
@@ -855,7 +986,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			runCmd.Stdout = cmd.OutOrStdout()
 			runCmd.Stderr = cmd.ErrOrStderr()
 			runCmd.Stdin = cmd.InOrStdin()
-			return runCmd.Run()
+			return startCommandAndPersistAdvice(cmd, runCmd, "llama.cpp", modelID, filepath.Base(modelPath), llamaAdviceToPersist)
 		},
 	}
 	runCmd.Flags().StringP("source", "s", "", "Source of the model (ollama, huggingface, modelscope)")
@@ -869,6 +1000,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Bool("auto-batch", false, "Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model")
 	runCmd.Flags().Bool("smart-run", false, "Use LLM to refine runtime parameters from hardware and model context")
 	runCmd.Flags().Bool("smart-run-debug", false, "Print smart-run planner source and fallback reason")
+	runCmd.Flags().Bool("smart-run-refresh", false, "Force smart-run to ignore saved parameters and ask the LLM again")
 	runCmd.Flags().Bool("smart-run-strict", false, "Fail model run if smart-run cannot obtain valid LLM advice")
 	runCmd.Flags().Bool("dry-run", false, "Print the final runtime command without launching the process")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
@@ -1008,12 +1140,83 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	}
 	repairCmd.Flags().StringP("source", "s", "", "Source of the model (ollama, huggingface, modelscope)")
 
+	smartRunCacheCmd := &cobra.Command{
+		Use:   "smart-run-cache",
+		Short: "Manage persisted smart-run parameters",
+	}
+
+	smartRunCacheListCmd := &cobra.Command{
+		Use:   "list [model-id]",
+		Short: "List persisted smart-run parameters",
+		Args:  cobra.RangeArgs(0, 1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			modelFilter := ""
+			if len(args) == 1 {
+				modelFilter = strings.TrimSpace(args[0])
+			}
+			runtimeFilter, _ := cmd.Flags().GetString("runtime")
+			entries, err := listSmartRunAdviceEntries(runtimeFilter, modelFilter)
+			if err != nil {
+				return err
+			}
+			if len(entries) == 0 {
+				cmd.Println("No smart-run cache entries found.")
+				return nil
+			}
+
+			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			fmt.Fprintln(writer, "RUNTIME\tMODEL\tSELECTOR\tSAVED")
+			for _, entry := range entries {
+				savedAt := ""
+				if !entry.SavedAt.IsZero() {
+					savedAt = entry.SavedAt.Local().Format("2006-01-02 15:04:05")
+				}
+				fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n",
+					entry.Runtime,
+					entry.ModelID,
+					fallbackString(entry.Selector, "-"),
+					fallbackString(savedAt, "-"),
+				)
+			}
+			return writer.Flush()
+		},
+	}
+	smartRunCacheListCmd.Flags().String("runtime", "", "Filter cache entries by runtime (llama.cpp or vllm)")
+
+	smartRunCacheRmCmd := &cobra.Command{
+		Use:   "rm [model-id]",
+		Short: "Remove persisted smart-run parameters for a model",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runtimeFilter, _ := cmd.Flags().GetString("runtime")
+			removed, err := removeSmartRunAdviceEntries(runtimeFilter, strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			if removed == 0 {
+				cmd.Printf("No smart-run cache entries found for model %s.\n", args[0])
+				return nil
+			}
+			cmd.Printf("Removed %d smart-run cache entr", removed)
+			if removed == 1 {
+				cmd.Println("y.")
+			} else {
+				cmd.Println("ies.")
+			}
+			return nil
+		},
+	}
+	smartRunCacheRmCmd.Flags().String("runtime", "", "Filter cache entries by runtime (llama.cpp or vllm)")
+	smartRunCacheCmd.AddCommand(smartRunCacheListCmd)
+	smartRunCacheCmd.AddCommand(smartRunCacheRmCmd)
+
 	modelCmd.AddCommand(searchCmd)
 	modelCmd.AddCommand(downloadCmd)
 	modelCmd.AddCommand(listCmd)
 	modelCmd.AddCommand(runCmd)
 	modelCmd.AddCommand(rmCmd)
 	modelCmd.AddCommand(repairCmd)
+	modelCmd.AddCommand(smartRunCacheCmd)
 	rootCmd.AddCommand(modelCmd)
 }
 
@@ -1645,17 +1848,205 @@ func printDryRunCommand(cmd *cobra.Command, binary string, args []string, extraE
 	}
 }
 
+func startCommandAndPersistAdvice(cmd *cobra.Command, runCmd *exec.Cmd, runtimeName, modelID, selector string, advice *smartRunAdviceEnvelope) error {
+	if err := runCmd.Start(); err != nil {
+		return err
+	}
+	if advice != nil {
+		if err := saveSmartRunAdvice(runtimeName, modelID, selector, *advice); err != nil {
+			cmd.Printf("Warning: failed to save smart-run parameters: %v\n", err)
+		}
+	}
+	return runCmd.Wait()
+}
+
 func evaluateSmartRunOutcome(enabled bool, plannerErr error, strict bool) (source, reason string, fatal error) {
+	return evaluateSmartRunOutcomeWithSource(enabled, "", "", plannerErr, strict)
+}
+
+func evaluateSmartRunOutcomeWithSource(enabled bool, source, reason string, plannerErr error, strict bool) (resolvedSource, resolvedReason string, fatal error) {
 	if !enabled {
 		return "static", "smart-run disabled", nil
 	}
 	if plannerErr == nil {
-		return "llm", "LLM advice applied", nil
+		if strings.TrimSpace(source) == "" {
+			source = "llm"
+		}
+		if strings.TrimSpace(reason) == "" {
+			reason = "LLM advice applied"
+		}
+		return source, reason, nil
 	}
 	if strict {
 		return "static", plannerErr.Error(), fmt.Errorf("smart-run strict mode: %w", plannerErr)
 	}
 	return "static", plannerErr.Error(), nil
+}
+
+type persistedSmartRunAdvice struct {
+	SchemaVersion int                    `json:"schema_version"`
+	Runtime       string                 `json:"runtime"`
+	ModelID       string                 `json:"model_id"`
+	Selector      string                 `json:"selector,omitempty"`
+	SavedAt       time.Time              `json:"saved_at"`
+	Advice        smartRunAdviceEnvelope `json:"advice"`
+}
+
+type smartRunAdviceEntry struct {
+	Path     string
+	Runtime  string
+	ModelID  string
+	Selector string
+	SavedAt  time.Time
+	Advice   smartRunAdviceEnvelope
+}
+
+func smartRunAdviceDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return "", fmt.Errorf("determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".localaistack", "smart-run"), nil
+}
+
+func listSmartRunAdviceEntries(runtimeFilter, modelFilter string) ([]smartRunAdviceEntry, error) {
+	dir, err := smartRunAdviceDir()
+	if err != nil {
+		return nil, err
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil {
+		return nil, err
+	}
+	normalizedRuntime := strings.TrimSpace(runtimeFilter)
+	normalizedModel := strings.TrimSpace(modelFilter)
+	entries := make([]smartRunAdviceEntry, 0, len(files))
+	for _, path := range files {
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		var saved persistedSmartRunAdvice
+		if err := json.Unmarshal(payload, &saved); err != nil {
+			return nil, fmt.Errorf("parse saved smart-run advice %s: %w", path, err)
+		}
+		if saved.SchemaVersion != smartRunAdviceSchemaVersion {
+			continue
+		}
+		if normalizedRuntime != "" && saved.Runtime != normalizedRuntime {
+			continue
+		}
+		if normalizedModel != "" && saved.ModelID != normalizedModel {
+			continue
+		}
+		entries = append(entries, smartRunAdviceEntry{
+			Path:     path,
+			Runtime:  saved.Runtime,
+			ModelID:  saved.ModelID,
+			Selector: saved.Selector,
+			SavedAt:  saved.SavedAt,
+			Advice:   saved.Advice,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].ModelID != entries[j].ModelID {
+			return entries[i].ModelID < entries[j].ModelID
+		}
+		if entries[i].Runtime != entries[j].Runtime {
+			return entries[i].Runtime < entries[j].Runtime
+		}
+		if entries[i].Selector != entries[j].Selector {
+			return entries[i].Selector < entries[j].Selector
+		}
+		return entries[i].SavedAt.After(entries[j].SavedAt)
+	})
+	return entries, nil
+}
+
+func removeSmartRunAdviceEntries(runtimeFilter, modelFilter string) (int, error) {
+	entries, err := listSmartRunAdviceEntries(runtimeFilter, modelFilter)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, entry := range entries {
+		if err := os.Remove(entry.Path); err != nil {
+			return removed, err
+		}
+		removed++
+	}
+	return removed, nil
+}
+
+func smartRunAdvicePath(runtimeName, modelID, selector string) (string, error) {
+	dir, err := smartRunAdviceDir()
+	if err != nil {
+		return "", err
+	}
+	parts := []string{sanitizeSmartRunPathPart(runtimeName), sanitizeSmartRunPathPart(modelID)}
+	if trimmed := sanitizeSmartRunPathPart(selector); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	return filepath.Join(dir, strings.Join(parts, "__")+".json"), nil
+}
+
+func sanitizeSmartRunPathPart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "default"
+	}
+	value = strings.ReplaceAll(value, string(filepath.Separator), "_")
+	re := regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+	value = re.ReplaceAllString(value, "_")
+	value = strings.Trim(value, "._-")
+	if value == "" {
+		return "default"
+	}
+	return value
+}
+
+func loadSmartRunAdvice(runtimeName, modelID, selector string) (smartRunAdviceEnvelope, error) {
+	path, err := smartRunAdvicePath(runtimeName, modelID, selector)
+	if err != nil {
+		return smartRunAdviceEnvelope{}, err
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return smartRunAdviceEnvelope{}, err
+	}
+	var saved persistedSmartRunAdvice
+	if err := json.Unmarshal(payload, &saved); err != nil {
+		return smartRunAdviceEnvelope{}, fmt.Errorf("parse saved smart-run advice: %w", err)
+	}
+	if saved.SchemaVersion != smartRunAdviceSchemaVersion {
+		return smartRunAdviceEnvelope{}, fmt.Errorf("unsupported saved smart-run advice schema version: %d", saved.SchemaVersion)
+	}
+	if saved.Runtime != runtimeName || saved.ModelID != modelID || saved.Selector != selector {
+		return smartRunAdviceEnvelope{}, fmt.Errorf("saved smart-run advice key mismatch")
+	}
+	return saved.Advice, nil
+}
+
+func saveSmartRunAdvice(runtimeName, modelID, selector string, advice smartRunAdviceEnvelope) error {
+	path, err := smartRunAdvicePath(runtimeName, modelID, selector)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	payload, err := json.MarshalIndent(persistedSmartRunAdvice{
+		SchemaVersion: smartRunAdviceSchemaVersion,
+		Runtime:       runtimeName,
+		ModelID:       modelID,
+		Selector:      selector,
+		SavedAt:       time.Now().UTC(),
+		Advice:        advice,
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, payload, 0o600)
 }
 
 func printSmartRunDebug(cmd *cobra.Command, runtimeName, source, reason string) {
