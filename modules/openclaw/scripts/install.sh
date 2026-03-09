@@ -91,6 +91,7 @@ install_from_npm() {
   ensure_nodejs_for_npm || return 1
 
   local npm_pkgs=(
+    "openclaw@latest"
     "openclaw"
     "@openclaw/cli"
     "openclaw-cli"
@@ -193,4 +194,6 @@ main() {
   echo "OpenClaw installed at: $(command -v openclaw)"
 }
 
-main "$@"
+if [[ "${OPENCLAW_SKIP_MAIN:-0}" != "1" ]]; then
+  main "$@"
+fi

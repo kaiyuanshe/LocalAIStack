@@ -14,6 +14,16 @@ ALT_VENV_DIRS=(
   "$HOME/.venv/vllm"
   "$HOME/.localaistack/venv/vllm"
 )
+CACHE_DIRS=(
+  "$HOME/.cache/vllm"
+  "$HOME/.config/vllm"
+)
+
+stop_vllm_processes() {
+  pkill -f "/bin/vllm" 2>/dev/null || true
+  pkill -f "vllm serve" 2>/dev/null || true
+  pkill -f "vllm.entrypoints" 2>/dev/null || true
+}
 
 remove_wrapper() {
   local path="$1"
@@ -51,6 +61,7 @@ detect_and_remove_linked_venv() {
 }
 
 detect_and_remove_linked_venv
+stop_vllm_processes
 remove_venv_dir "$VENV_DIR"
 for dir in "${ALT_VENV_DIRS[@]}"; do
   remove_venv_dir "$dir"
@@ -62,3 +73,6 @@ fi
 if [[ -d "$HOME/.localaistack/src/vllm" ]]; then
   rm -rf "$HOME/.localaistack/src/vllm"
 fi
+for dir in "${CACHE_DIRS[@]}"; do
+  remove_venv_dir "$dir"
+done
