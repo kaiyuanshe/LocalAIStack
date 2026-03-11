@@ -10,6 +10,7 @@ fi
 PYTHON_BIN="${VLLM_PYTHON:-python3}"
 INSTALL_METHOD="${VLLM_INSTALL_METHOD:-auto}"
 BASE_INFO_PATH="${LAS_BASE_INFO_PATH:-$HOME/.localaistack/base_info.json}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 has_avx512() {
   local flags=""
@@ -20,6 +21,41 @@ has_avx512() {
     flags="$(grep -i "flags" /proc/cpuinfo | head -n 1 | tr -d '\r')"
   fi
   echo "$flags" | grep -qi "avx512"
+}
+
+detect_gpu_name() {
+  local gpu_name=""
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n 1 | tr -d '\r')"
+  fi
+  if [[ -z "$gpu_name" && -f "$BASE_INFO_PATH" ]]; then
+    gpu_name="$("$PYTHON_BIN" - "$BASE_INFO_PATH" <<'PY'
+import json
+import re
+import sys
+
+path = sys.argv[1]
+raw = open(path, "r", encoding="utf-8").read()
+try:
+    data = json.loads(raw)
+except Exception:
+    match = re.search(r"(?im)-\s*GPU(?:\s*\([^)]+\)|（[^）]+）)?\s*[:：]\s*([^\n#]+)", raw)
+    if match:
+        print(match.group(1).strip())
+else:
+    gpu = data.get("gpu") or data.get("gpu_name") or ""
+    if isinstance(gpu, str):
+        print(gpu.split(";")[0].strip())
+PY
+)"
+  fi
+  printf '%s' "$gpu_name"
+}
+
+is_v100_gpu() {
+  local gpu_name
+  gpu_name="$(detect_gpu_name)"
+  [[ "$gpu_name" =~ (Tesla[[:space:]]+)?V100 ]]
 }
 
 ensure_wrapper() {
@@ -41,6 +77,16 @@ exec \"$venv_bin\" \"\$@\"
     mkdir -p "$HOME/.local/bin"
     echo "$wrapper_content" > "$HOME/.local/bin/vllm"
     chmod 0755 "$HOME/.local/bin/vllm"
+  fi
+}
+
+delegate_to_v100_installer_if_needed() {
+  if [[ "${VLLM_FORCE_GENERIC_INSTALL:-0}" == "1" ]]; then
+    return
+  fi
+  if [[ "${VLLM_FORCE_V100_INSTALL:-0}" == "1" ]] || is_v100_gpu; then
+    echo "Detected Tesla V100 GPU, delegating to install_for_v100.sh" >&2
+    exec bash "$SCRIPT_DIR/install_for_v100.sh"
   fi
 }
 
@@ -88,6 +134,8 @@ install_from_source() {
 
   popd >/dev/null
 }
+
+delegate_to_v100_installer_if_needed
 
 install_from_wheel() {
   venv_dir="${VLLM_VENV_DIR:-$HOME/.localaistack/venv/vllm}"
