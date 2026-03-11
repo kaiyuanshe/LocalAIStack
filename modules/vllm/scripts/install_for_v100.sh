@@ -126,6 +126,17 @@ PY
   fi
 }
 
+clean_v100_build_artifacts() {
+  if [[ "${VLLM_V100_SKIP_CLEAN:-0}" == "1" ]]; then
+    return
+  fi
+
+  rm -rf build .setuptools-cmake-build vllm.egg-info
+  rm -rf .deps/*subbuild
+  rm -f vllm/*.abi3.so
+  python -m pip uninstall -y vllm >/dev/null 2>&1 || true
+}
+
 configure_cuda_toolchain() {
   local candidate=""
   local nvcc_bin=""
@@ -182,6 +193,7 @@ python use_existing_torch.py
 uv pip install -r requirements/build.txt
 uv pip install -r requirements/cuda.txt
 uv pip install -r requirements/common.txt
+clean_v100_build_artifacts
 python -m pip install -e . --no-build-isolation
 
 ensure_wrapper "$SOURCE_DIR/.venv/bin/vllm"
