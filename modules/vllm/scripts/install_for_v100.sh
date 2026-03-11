@@ -14,6 +14,9 @@ PYTHON_VERSION="${VLLM_PYTHON_VERSION:-3.12}"
 TORCH_INDEX_URL="${VLLM_V100_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
 TORCH_PACKAGES="${VLLM_V100_TORCH_PACKAGES:-torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0}"
 TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
+MAX_JOBS="${VLLM_V100_MAX_JOBS:-24}"
+CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$MAX_JOBS}"
+NVCC_THREADS="${NVCC_THREADS:-1}"
 
 ensure_wrapper() {
   local venv_bin="$1"
@@ -67,6 +70,8 @@ fi
 
 pushd "$SOURCE_DIR" >/dev/null
 
+git submodule update --init --recursive lmdeploy
+
 uv venv --allow-existing --python "$PYTHON_VERSION" --seed
 # shellcheck disable=SC1091
 source .venv/bin/activate
@@ -77,8 +82,27 @@ fi
 
 export TORCH_CUDA_ARCH_LIST
 export VLLM_TARGET_DEVICE="${VLLM_TARGET_DEVICE:-cuda}"
+export MAX_JOBS
+export CMAKE_BUILD_PARALLEL_LEVEL
+export NVCC_THREADS
+
+if [[ -z "${CUDA_HOME:-}" && -d /usr/local/cuda-12.8 ]]; then
+  export CUDA_HOME=/usr/local/cuda-12.8
+  export PATH="$CUDA_HOME/bin:$PATH"
+  export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+fi
+
 python use_existing_torch.py
+uv pip install -r requirements/build.txt
+uv pip install -r requirements/cuda.txt
+uv pip install -r requirements/common.txt
+python -m pip install -e . --no-build-isolation
 
 ensure_wrapper "$SOURCE_DIR/.venv/bin/vllm"
+
+if ! command -v "$SOURCE_DIR/.venv/bin/vllm" >/dev/null 2>&1; then
+  echo "vllm executable was not created after editable install" >&2
+  exit 1
+fi
 
 popd >/dev/null
