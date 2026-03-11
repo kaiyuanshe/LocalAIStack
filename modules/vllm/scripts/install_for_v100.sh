@@ -61,8 +61,38 @@ install_uv_if_needed() {
   fi
 }
 
+configure_cuda_toolchain() {
+  local candidate=""
+  local nvcc_bin=""
+  local version=""
+
+  for candidate in "${CUDA_HOME:-}" /usr/local/cuda /usr/local/cuda-12.9 /usr/local/cuda-12.8 /usr/local/cuda-12 /usr/local/cuda-11.8; do
+    [[ -n "$candidate" ]] || continue
+    nvcc_bin="$candidate/bin/nvcc"
+    if [[ -x "$nvcc_bin" ]]; then
+      version="$("$nvcc_bin" -V 2>/dev/null | sed -n 's/.*release \([0-9][0-9.]*\).*/\1/p' | head -n 1)"
+      if [[ -n "$version" ]]; then
+        export CUDA_HOME="$candidate"
+        export CUDACXX="$nvcc_bin"
+        export PATH="$CUDA_HOME/bin:$PATH"
+        export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+        case "$version" in
+          12.*|11.[6-9]*)
+            return
+            ;;
+        esac
+      fi
+    fi
+  done
+
+  echo "A CUDA toolkit with nvcc >= 11.6 is required for 1Cat-vLLM. Current CUDA_HOME=${CUDA_HOME:-unset}, /usr/bin/nvcc=$(/usr/bin/nvcc -V 2>/dev/null | sed -n 's/.*release \([0-9][0-9.]*\).*/\1/p' | head -n 1)." >&2
+  echo "Set CUDA_HOME to a newer toolkit, for example: export CUDA_HOME=/usr/local/cuda-12.9" >&2
+  exit 1
+}
+
 require_command git
 install_uv_if_needed
+configure_cuda_toolchain
 
 if [[ ! -d "$SOURCE_DIR/.git" ]]; then
   git clone "$REPO_URL" "$SOURCE_DIR"
@@ -85,12 +115,6 @@ export VLLM_TARGET_DEVICE="${VLLM_TARGET_DEVICE:-cuda}"
 export MAX_JOBS
 export CMAKE_BUILD_PARALLEL_LEVEL
 export NVCC_THREADS
-
-if [[ -z "${CUDA_HOME:-}" && -d /usr/local/cuda-12.8 ]]; then
-  export CUDA_HOME=/usr/local/cuda-12.8
-  export PATH="$CUDA_HOME/bin:$PATH"
-  export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
-fi
 
 python use_existing_torch.py
 uv pip install -r requirements/build.txt
