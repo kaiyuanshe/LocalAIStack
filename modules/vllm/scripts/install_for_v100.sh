@@ -12,7 +12,11 @@ SOURCE_DIR="${VLLM_V100_SOURCE_DIR:-$HOME/1Cat-vLLM}"
 REPO_URL="${VLLM_V100_REPO_URL:-https://github.com/1CatAI/1Cat-vLLM.git}"
 PYTHON_VERSION="${VLLM_PYTHON_VERSION:-3.12}"
 TORCH_INDEX_URL="${VLLM_V100_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
-TORCH_PACKAGES="${VLLM_V100_TORCH_PACKAGES:-torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0}"
+TORCH_VERSION="${VLLM_V100_TORCH_VERSION:-2.9.1}"
+TORCHVISION_VERSION="${VLLM_V100_TORCHVISION_VERSION:-0.24.1}"
+TORCHAUDIO_VERSION="${VLLM_V100_TORCHAUDIO_VERSION:-2.9.1}"
+TRITON_VERSION="${VLLM_V100_TRITON_VERSION:-3.5.1}"
+TORCH_PACKAGES="${VLLM_V100_TORCH_PACKAGES:-torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio==${TORCHAUDIO_VERSION}}"
 TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
 
 ensure_wrapper() {
@@ -91,6 +95,37 @@ detect_build_parallelism() {
   export NVCC_THREADS
 }
 
+ensure_v100_runtime_stack() {
+  local installed_torch=""
+  local installed_triton=""
+
+  installed_torch="$(python - <<'PY'
+try:
+    import torch
+    print(torch.__version__.split("+")[0])
+except Exception:
+    pass
+PY
+)"
+
+  installed_triton="$(python - <<'PY'
+try:
+    import triton
+    print(triton.__version__)
+except Exception:
+    pass
+PY
+)"
+
+  if [[ "$installed_torch" != "$TORCH_VERSION" ]]; then
+    uv pip install --index-url "$TORCH_INDEX_URL" --force-reinstall $TORCH_PACKAGES
+  fi
+
+  if [[ "$installed_triton" != "$TRITON_VERSION" ]]; then
+    uv pip install --force-reinstall "triton==$TRITON_VERSION"
+  fi
+}
+
 configure_cuda_toolchain() {
   local candidate=""
   local nvcc_bin=""
@@ -137,9 +172,7 @@ uv venv --allow-existing --python "$PYTHON_VERSION" --seed
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-if ! python -c 'import torch' >/dev/null 2>&1; then
-  uv pip install --index-url "$TORCH_INDEX_URL" $TORCH_PACKAGES
-fi
+ensure_v100_runtime_stack
 
 export TORCH_CUDA_ARCH_LIST
 export VLLM_TARGET_DEVICE="${VLLM_TARGET_DEVICE:-cuda}"
@@ -157,5 +190,11 @@ if ! command -v "$SOURCE_DIR/.venv/bin/vllm" >/dev/null 2>&1; then
   echo "vllm executable was not created after editable install" >&2
   exit 1
 fi
+
+python - <<'PY'
+import triton
+import triton.language.target_info
+print("Validated runtime stack:", {"triton": triton.__version__})
+PY
 
 popd >/dev/null
