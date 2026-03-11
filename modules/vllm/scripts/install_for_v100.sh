@@ -14,9 +14,6 @@ PYTHON_VERSION="${VLLM_PYTHON_VERSION:-3.12}"
 TORCH_INDEX_URL="${VLLM_V100_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
 TORCH_PACKAGES="${VLLM_V100_TORCH_PACKAGES:-torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0}"
 TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
-MAX_JOBS="${VLLM_V100_MAX_JOBS:-24}"
-CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$MAX_JOBS}"
-NVCC_THREADS="${NVCC_THREADS:-1}"
 
 ensure_wrapper() {
   local venv_bin="$1"
@@ -61,6 +58,39 @@ install_uv_if_needed() {
   fi
 }
 
+detect_build_parallelism() {
+  local cpu_count mem_available_kb mem_based_jobs cpu_based_jobs jobs
+
+  if [[ -n "${VLLM_V100_MAX_JOBS:-}" ]]; then
+    MAX_JOBS="$VLLM_V100_MAX_JOBS"
+  else
+    cpu_count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)"
+    mem_available_kb="$(awk '/MemAvailable:/ {print $2; exit}' /proc/meminfo 2>/dev/null)"
+    if [[ -z "$mem_available_kb" ]]; then
+      mem_available_kb=$((16 * 1024 * 1024))
+    fi
+    mem_based_jobs=$((mem_available_kb / 4194304))
+    (( mem_based_jobs < 2 )) && mem_based_jobs=2
+    cpu_based_jobs=$((cpu_count / 2))
+    (( cpu_based_jobs < 2 )) && cpu_based_jobs=2
+    jobs="$cpu_based_jobs"
+    (( mem_based_jobs < jobs )) && jobs="$mem_based_jobs"
+    (( jobs > 8 )) && jobs=8
+    MAX_JOBS="$jobs"
+  fi
+
+  if [[ -n "${VLLM_V100_NVCC_THREADS:-}" ]]; then
+    NVCC_THREADS="$VLLM_V100_NVCC_THREADS"
+  else
+    NVCC_THREADS=1
+  fi
+
+  CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$MAX_JOBS}"
+  export MAX_JOBS
+  export CMAKE_BUILD_PARALLEL_LEVEL
+  export NVCC_THREADS
+}
+
 configure_cuda_toolchain() {
   local candidate=""
   local nvcc_bin=""
@@ -92,6 +122,7 @@ configure_cuda_toolchain() {
 
 require_command git
 install_uv_if_needed
+detect_build_parallelism
 configure_cuda_toolchain
 
 if [[ ! -d "$SOURCE_DIR/.git" ]]; then
@@ -112,9 +143,7 @@ fi
 
 export TORCH_CUDA_ARCH_LIST
 export VLLM_TARGET_DEVICE="${VLLM_TARGET_DEVICE:-cuda}"
-export MAX_JOBS
-export CMAKE_BUILD_PARALLEL_LEVEL
-export NVCC_THREADS
+echo "Using V100 build parallelism: MAX_JOBS=$MAX_JOBS, CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL, NVCC_THREADS=$NVCC_THREADS" >&2
 
 python use_existing_torch.py
 uv pip install -r requirements/build.txt
