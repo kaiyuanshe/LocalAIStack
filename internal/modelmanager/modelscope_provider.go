@@ -142,50 +142,7 @@ func (p *ModelScopeProvider) detectFormatFromTags(tags []string) ModelFormat {
 }
 
 func (p *ModelScopeProvider) Download(ctx context.Context, modelID string, destPath string, progress func(downloaded, total int64), opts DownloadOptions) error {
-	files, err := p.listModelFiles(ctx, modelID)
-	if err != nil {
-		return fmt.Errorf("failed to list model files: %w", err)
-	}
-
-	modelDir := filepath.Join(destPath, strings.ReplaceAll(modelID, "/", "_"))
-	if err := os.MkdirAll(modelDir, 0755); err != nil {
-		return fmt.Errorf("failed to create model directory: %w", err)
-	}
-
-	candidates, err := filterModelScopeFiles(files, opts.FileHint)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range candidates {
-		fileURL := fmt.Sprintf("%s/models/%s/repo?file_path=%s", modelscopeAPIURL, modelID, file.Path)
-		destFile := filepath.Join(modelDir, filepath.Base(file.Path))
-
-		if err := p.downloadFile(ctx, fileURL, destFile, file.Size, progress); err != nil {
-			return fmt.Errorf("failed to download file %s: %w", file.Path, err)
-		}
-	}
-
-	metadata := map[string]interface{}{
-		"id":            modelID,
-		"source":        "modelscope",
-		"downloaded_at": time.Now().Unix(),
-	}
-
-	metadataPath := filepath.Join(modelDir, "metadata.json")
-	metadataFile, err := os.Create(metadataPath)
-	if err != nil {
-		return fmt.Errorf("failed to create metadata file: %w", err)
-	}
-	defer metadataFile.Close()
-
-	encoder := json.NewEncoder(metadataFile)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(metadata); err != nil {
-		return fmt.Errorf("failed to write metadata: %w", err)
-	}
-
-	return nil
+	return downloadModelWithModelScopeCLI(ctx, destPath, modelID, opts)
 }
 
 func filterModelScopeFiles(files []ModelScopeFile, hint string) ([]ModelScopeFile, error) {

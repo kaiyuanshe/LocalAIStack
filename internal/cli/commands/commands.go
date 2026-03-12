@@ -39,7 +39,7 @@ const (
 	llamaRunRecommendationsRelativePath = "llama.cpp/RUN_PARAMS_RECOMMENDATIONS.md"
 	llamaRunRecommendationsMaxBytes     = 16 * 1024
 	baseInfoPromptMaxBytes              = 16 * 1024
-	smartRunAdviceSchemaVersion         = 1
+	smartRunAdviceSchemaVersion         = 3
 )
 
 func RegisterModuleCommands(rootCmd *cobra.Command) {
@@ -456,10 +456,19 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				}
 			}
 
-			if err := mgr.DownloadModel(src, modelID, progress, modelmanager.DownloadOptions{FileHint: fileHint}); err != nil {
+			opts := modelmanager.DownloadOptions{
+				FileHint:                fileHint,
+				AllowModelScopeFallback: source == "" && src == modelmanager.SourceHuggingFace,
+			}
+
+			downloadedFrom, err := mgr.DownloadModel(src, modelID, progress, opts)
+			if err != nil {
 				return fmt.Errorf("failed to download model: %w", err)
 			}
 
+			if downloadedFrom != src {
+				cmd.Printf("\nModel not found on %s, downloaded from %s instead.\n", src, downloadedFrom)
+			}
 			cmd.Println("\nModel downloaded successfully!")
 			return nil
 		},
@@ -533,6 +542,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			vllmMaxModelLen, _ := cmd.Flags().GetInt("vllm-max-model-len")
 			vllmGpuMemUtil, _ := cmd.Flags().GetFloat64("vllm-gpu-memory-utilization")
 			vllmTrustRemoteCode, _ := cmd.Flags().GetBool("vllm-trust-remote-code")
+			textOnly, _ := cmd.Flags().GetBool("text-only")
 			threadsChanged := cmd.Flags().Changed("threads")
 			ctxSizeChanged := cmd.Flags().Changed("ctx-size")
 			gpuLayersChanged := cmd.Flags().Changed("n-gpu-layers")
@@ -686,6 +696,11 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					vllmDefaults.gpuMemUtil = vllmGpuMemUtil
 				}
 				enableTrustRemoteCode := vllmTrustRemoteCode || shouldAutoEnableVLLMTrustRemoteCode(modelDir)
+				textOnlyModel := isLikelyTextOnlyVLLMModel(modelDir)
+				if textOnly {
+					vllmDefaults.skipMMProfiling = true
+					vllmDefaults.limitMMPerPrompt = `{"image":0,"video":0}`
+				}
 				vllmSmartSource := ""
 				vllmSmartReason := ""
 				vllmSmartErr := error(nil)
@@ -751,6 +766,11 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 						vllmSmartErr = fmt.Errorf("smart-run refresh requires LLM configuration")
 					}
 				}
+				vllmDefaults = finalizeVLLMRunParams(baseInfo, vllmDefaults, textOnlyModel)
+				if smartRun && textOnly {
+					vllmDefaults.enforceEager = false
+					vllmDefaults.optimizationLevel = -1
+				}
 				vllmSmartSource, vllmSmartReason, vllmSmartFatal := evaluateSmartRunOutcomeWithSource(smartRun, vllmSmartSource, vllmSmartReason, vllmSmartErr, smartRunStrict)
 				if smartRunDebug {
 					printSmartRunDebug(cmd, "vllm", vllmSmartSource, vllmSmartReason)
@@ -759,7 +779,8 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					return vllmSmartFatal
 				}
 				cmd.Printf("Starting vLLM server for %s\n", modelID)
-				args := buildVLLMServeArgs(modelRef, host, port, vllmDefaults, enableTrustRemoteCode)
+				servedModelName := suggestVLLMServedModelName(modelID)
+				args := buildVLLMServeArgs(modelRef, servedModelName, host, port, vllmDefaults, enableTrustRemoteCode)
 				if dryRun {
 					printDryRunCommand(cmd, vllmPath, args, vllmDefaults.env)
 					return nil
@@ -1002,6 +1023,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Bool("smart-run-debug", false, "Print smart-run planner source and fallback reason")
 	runCmd.Flags().Bool("smart-run-refresh", false, "Force smart-run to ignore saved parameters and ask the LLM again")
 	runCmd.Flags().Bool("smart-run-strict", false, "Fail model run if smart-run cannot obtain valid LLM advice")
+	runCmd.Flags().Bool("text-only", false, "Force multimodal vLLM models to serve text-only requests")
 	runCmd.Flags().Bool("dry-run", false, "Print the final runtime command without launching the process")
 	runCmd.Flags().String("host", "0.0.0.0", "Host to bind llama.cpp server")
 	runCmd.Flags().Int("port", 8080, "Port to bind llama.cpp server")
@@ -1377,6 +1399,11 @@ type vllmRunDefaults struct {
 	enforceEager           bool
 	optimizationLevel      int
 	maxNumSeqs             int
+	maxNumBatchedTokens    int
+	attentionBackend       string
+	compilationConfig      string
+	skipMMProfiling        bool
+	limitMMPerPrompt       string
 	disableCustomAllReduce bool
 	env                    []string
 }
@@ -1579,10 +1606,7 @@ func defaultVLLMRunParams(info system.BaseInfoSummary) vllmRunDefaults {
 	}
 
 	disableCustomAllReduce := tpSize > 1 && (legacyGPU || perGPUVRAM <= 16)
-	env := make([]string, 0, 2)
-	if disableCustomAllReduce {
-		env = append(env, "NCCL_IB_DISABLE=1", "NCCL_P2P_DISABLE=1")
-	}
+	env := make([]string, 0, 1)
 
 	return vllmRunDefaults{
 		maxModelLen:            maxModelLen,
@@ -1595,6 +1619,85 @@ func defaultVLLMRunParams(info system.BaseInfoSummary) vllmRunDefaults {
 		disableCustomAllReduce: disableCustomAllReduce,
 		env:                    env,
 	}
+}
+
+func finalizeVLLMRunParams(info system.BaseInfoSummary, defaults vllmRunDefaults, _ bool) vllmRunDefaults {
+	vram := parseVRAMFromGPUName(info.GPUName)
+	gpuCount := info.GPUCount
+	if gpuCount <= 0 && vram > 0 {
+		gpuCount = 1
+	}
+	perGPUVRAM := vram
+	legacyGPU := isLegacyCUDAInferenceGPU(info.GPUName)
+
+	if gpuCount <= 0 {
+		defaults.tensorParallelSize = 1
+	} else {
+		defaults.tensorParallelSize = clampInt(defaults.tensorParallelSize, 1, gpuCount)
+	}
+
+	if legacyGPU || (perGPUVRAM > 0 && perGPUVRAM <= 16) {
+		if defaults.maxModelLen > 512 {
+			defaults.maxModelLen = 512
+		}
+		if defaults.gpuMemUtil <= 0 || defaults.gpuMemUtil > 0.80 {
+			defaults.gpuMemUtil = 0.80
+		}
+		if defaults.dtype == "" {
+			defaults.dtype = "float16"
+		}
+		defaults.enforceEager = true
+		defaults.optimizationLevel = 0
+		if defaults.maxNumSeqs <= 0 || defaults.maxNumSeqs > 1 {
+			defaults.maxNumSeqs = 1
+		}
+		if defaults.maxNumBatchedTokens <= 0 || defaults.maxNumBatchedTokens > 128 {
+			defaults.maxNumBatchedTokens = 128
+		}
+		if defaults.attentionBackend == "" {
+			defaults.attentionBackend = "TRITON_ATTN"
+		}
+		if defaults.compilationConfig == "" {
+			defaults.compilationConfig = `{"cudagraph_mode":"full_and_piecewise","cudagraph_capture_sizes":[1]}`
+		}
+		defaults.skipMMProfiling = true
+		if defaults.limitMMPerPrompt == "" {
+			defaults.limitMMPerPrompt = `{"image":0,"video":0}`
+		}
+		defaults.disableCustomAllReduce = defaults.tensorParallelSize > 1
+	}
+
+	defaults.maxModelLen = clampInt(defaults.maxModelLen, 256, 131072)
+	defaults.optimizationLevel = clampInt(defaults.optimizationLevel, 0, 3)
+	defaults.maxNumSeqs = clampInt(defaults.maxNumSeqs, 1, 256)
+	if defaults.maxNumBatchedTokens > 0 {
+		defaults.maxNumBatchedTokens = clampInt(defaults.maxNumBatchedTokens, 32, 65536)
+	}
+	defaults.attentionBackend = strings.TrimSpace(defaults.attentionBackend)
+	defaults.compilationConfig = strings.TrimSpace(defaults.compilationConfig)
+	defaults.limitMMPerPrompt = strings.TrimSpace(defaults.limitMMPerPrompt)
+	defaults.gpuMemUtil = clampFloat(defaults.gpuMemUtil, 0, 0.98)
+
+	defaults.env = defaults.env[:0]
+	if defaults.tensorParallelSize > 1 {
+		defaults.env = append(defaults.env, "CUDA_VISIBLE_DEVICES="+buildCUDAVisibleDevices(defaults.tensorParallelSize))
+	}
+	if legacyGPU {
+		defaults.env = append(defaults.env, "VLLM_DISABLE_PYNCCL=1")
+	}
+
+	return defaults
+}
+
+func buildCUDAVisibleDevices(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	devices := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		devices = append(devices, strconv.Itoa(i))
+	}
+	return strings.Join(devices, ",")
 }
 
 func parseVRAMFromGPUName(name string) int {
@@ -1774,8 +1877,11 @@ func autoTuneBatchParams(info system.BaseInfoSummary, modelPath string, ctxSize 
 	}
 }
 
-func buildVLLMServeArgs(modelRef, host string, port int, defaults vllmRunDefaults, enableTrustRemoteCode bool) []string {
-	args := []string{"serve", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+func buildVLLMServeArgs(modelRef, servedModelName, host string, port int, defaults vllmRunDefaults, enableTrustRemoteCode bool) []string {
+	args := []string{"serve", "--model", modelRef, "--host", host, "--port", strconv.Itoa(port)}
+	if servedModelName != "" {
+		args = append(args, "--served-model-name", servedModelName)
+	}
 	if defaults.dtype != "" {
 		args = append(args, "--dtype", defaults.dtype)
 	}
@@ -1787,6 +1893,9 @@ func buildVLLMServeArgs(modelRef, host string, port int, defaults vllmRunDefault
 	}
 	if defaults.tensorParallelSize > 1 {
 		args = append(args, "--tensor-parallel-size", strconv.Itoa(defaults.tensorParallelSize))
+	}
+	if defaults.attentionBackend != "" {
+		args = append(args, "--attention-backend", defaults.attentionBackend)
 	}
 	if defaults.enforceEager {
 		args = append(args, "--enforce-eager")
@@ -1800,10 +1909,52 @@ func buildVLLMServeArgs(modelRef, host string, port int, defaults vllmRunDefault
 	if defaults.maxNumSeqs > 0 {
 		args = append(args, "--max-num-seqs", strconv.Itoa(defaults.maxNumSeqs))
 	}
+	if defaults.maxNumBatchedTokens > 0 {
+		args = append(args, "--max-num-batched-tokens", strconv.Itoa(defaults.maxNumBatchedTokens))
+	}
+	if defaults.skipMMProfiling {
+		args = append(args, "--skip-mm-profiling")
+	}
+	if defaults.limitMMPerPrompt != "" {
+		args = append(args, "--limit-mm-per-prompt", defaults.limitMMPerPrompt)
+	}
+	if defaults.compilationConfig != "" {
+		args = append(args, "--compilation-config", defaults.compilationConfig)
+	}
 	if enableTrustRemoteCode {
 		args = append(args, "--trust-remote-code")
 	}
 	return args
+}
+
+func suggestVLLMServedModelName(modelID string) string {
+	base := strings.ToLower(strings.TrimSpace(filepath.Base(modelID)))
+	if base == "" || base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+
+	replacer := strings.NewReplacer(".", "", "_", "-", " ", "-", "/", "-")
+	base = replacer.Replace(base)
+
+	parts := strings.Split(base, "-")
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		switch part {
+		case "awq", "gguf", "gptq", "fp16", "bf16", "int4", "int8":
+			continue
+		}
+		filtered = append(filtered, part)
+	}
+
+	name := strings.Join(filtered, "-")
+	name = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(name, "")
+	name = regexp.MustCompile(`-+`).ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-")
+	return name
 }
 
 func buildLlamaServerArgs(modelPath string, defaults llamaRunDefaults, host string, port int, sampling llamaSamplingParams, batch llamaBatchParams, chatTemplateKwargs string) []string {
@@ -2403,7 +2554,8 @@ func shouldAutoEnableVLLMTrustRemoteCode(modelDir string) bool {
 		"processor_config.json",
 	}
 	for _, name := range configFiles {
-		if configHasAutoMap(filepath.Join(modelDir, name)) {
+		path := filepath.Join(modelDir, name)
+		if configHasAutoMap(path) || configSuggestsTrustRemoteCode(path) {
 			return true
 		}
 	}
@@ -2411,6 +2563,97 @@ func shouldAutoEnableVLLMTrustRemoteCode(modelDir string) bool {
 	pythonFiles, err := filepath.Glob(filepath.Join(modelDir, "*.py"))
 	if err == nil && len(pythonFiles) > 0 {
 		return true
+	}
+	return false
+}
+
+func configSuggestsTrustRemoteCode(path string) bool {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+
+	values := make([]string, 0, 6)
+	for _, key := range []string{"model_type", "processor_class"} {
+		if value, ok := payload[key].(string); ok {
+			values = append(values, value)
+		}
+	}
+	if architectures, ok := payload["architectures"].([]any); ok {
+		for _, item := range architectures {
+			if value, ok := item.(string); ok {
+				values = append(values, value)
+			}
+		}
+	}
+
+	for _, value := range values {
+		lowerValue := strings.ToLower(strings.TrimSpace(value))
+		if strings.Contains(lowerValue, "qwen3_5") {
+			return true
+		}
+		if strings.Contains(lowerValue, "conditionalgeneration") && (strings.Contains(lowerValue, "qwen") || strings.Contains(lowerValue, "vl")) {
+			return true
+		}
+		if strings.Contains(lowerValue, "vlprocessor") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isLikelyTextOnlyVLLMModel(modelDir string) bool {
+	configNames := []string{
+		"config.json",
+		"preprocessor_config.json",
+		"processor_config.json",
+	}
+	for _, name := range configNames {
+		path := filepath.Join(modelDir, name)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			continue
+		}
+		if configLooksMultimodal(payload) {
+			return false
+		}
+	}
+	return true
+}
+
+func configLooksMultimodal(payload map[string]any) bool {
+	for key, value := range payload {
+		lowerKey := strings.ToLower(strings.TrimSpace(key))
+		if strings.Contains(lowerKey, "vision") || strings.Contains(lowerKey, "image") || strings.Contains(lowerKey, "video") || strings.Contains(lowerKey, "audio") {
+			return true
+		}
+		switch v := value.(type) {
+		case string:
+			lowerValue := strings.ToLower(strings.TrimSpace(v))
+			if strings.Contains(lowerValue, "vision") || strings.Contains(lowerValue, "image") || strings.Contains(lowerValue, "video") || strings.Contains(lowerValue, "audio") || strings.Contains(lowerValue, "vl") {
+				return true
+			}
+		case []any:
+			for _, item := range v {
+				str, ok := item.(string)
+				if !ok {
+					continue
+				}
+				lowerValue := strings.ToLower(strings.TrimSpace(str))
+				if strings.Contains(lowerValue, "vision") || strings.Contains(lowerValue, "image") || strings.Contains(lowerValue, "video") || strings.Contains(lowerValue, "audio") || strings.Contains(lowerValue, "vl") {
+					return true
+				}
+			}
+		}
 	}
 	return false
 }

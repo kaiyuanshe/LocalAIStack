@@ -28,8 +28,13 @@ func (m *Manager) ResolveLocalModelDir(source ModelSource, modelID string) (stri
 }
 
 func FindGGUFFiles(modelPath string) ([]string, error) {
+	resolvedPath, err := resolveWalkRoot(modelPath)
+	if err != nil {
+		return nil, err
+	}
+
 	var files []string
-	err := filepath.WalkDir(modelPath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(resolvedPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -49,8 +54,13 @@ func FindGGUFFiles(modelPath string) ([]string, error) {
 }
 
 func FindSafetensorsFiles(modelPath string) ([]string, error) {
+	resolvedPath, err := resolveWalkRoot(modelPath)
+	if err != nil {
+		return nil, err
+	}
+
 	var files []string
-	err := filepath.WalkDir(modelPath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(resolvedPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -67,4 +77,15 @@ func FindSafetensorsFiles(modelPath string) ([]string, error) {
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func resolveWalkRoot(modelPath string) (string, error) {
+	resolvedPath, err := filepath.EvalSymlinks(modelPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("model path %s not found", modelPath)
+		}
+		return "", err
+	}
+	return resolvedPath, nil
 }

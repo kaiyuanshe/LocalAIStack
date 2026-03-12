@@ -321,6 +321,9 @@ func (p *HuggingFaceProvider) listModelFiles(ctx context.Context, modelID string
 		if err != nil {
 			files, fallbackErr := p.listModelFilesFromSiblings(ctx, modelID)
 			if fallbackErr != nil {
+				if errors.Is(fallbackErr, ErrModelNotFound) {
+					return nil, fallbackErr
+				}
 				return nil, err
 			}
 			return files, nil
@@ -363,6 +366,12 @@ func (p *HuggingFaceProvider) listModelFilesFromSiblings(ctx context.Context, mo
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: huggingface model %s", ErrModelNotFound, modelID)
+		}
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return nil, fmt.Errorf("%w: huggingface model %s returned status %d", ErrSourceUnavailable, modelID, resp.StatusCode)
+		}
 		return nil, fmt.Errorf("fallback model info returned status %d", resp.StatusCode)
 	}
 
@@ -438,7 +447,13 @@ func (p *HuggingFaceProvider) listModelEntries(ctx context.Context, modelID, sub
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("HuggingFace API returned status %d", resp.StatusCode)
+			if resp.StatusCode == http.StatusNotFound {
+				lastErr = fmt.Errorf("%w: huggingface model %s", ErrModelNotFound, modelID)
+			} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+				lastErr = fmt.Errorf("%w: huggingface model %s returned status %d", ErrSourceUnavailable, modelID, resp.StatusCode)
+			} else {
+				lastErr = fmt.Errorf("HuggingFace API returned status %d", resp.StatusCode)
+			}
 			if attempt < 3 && shouldRetryHuggingFace(nil, resp.StatusCode) {
 				time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
 				continue

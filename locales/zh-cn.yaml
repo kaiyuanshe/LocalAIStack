@@ -26,6 +26,7 @@ Fail model run if smart-run cannot obtain valid LLM advice: 如果 smart-run 无
 Filter by category (auth/rate_limit/timeout/network/command_exit/...): 按类别筛选（auth/rate_limit/timeout/network/command_exit/...）
 Filter by phase (install_planner/config_planner/smart_run/module_install/model_run): 按阶段进行筛选（install_planner/config_planner/smart_run/module_install/model_run）
 Filter cache entries by runtime (llama.cpp or vllm): 根据运行时（llama.cpp 或 vllm）来过滤缓存条目。
+Force multimodal vLLM models to serve text-only requests: 强制多模态 vLLM 模型仅处理纯文本请求。
 Force removal without confirmation: 强制移除，无需确认。
 Force smart-run to ignore saved parameters and ask the LLM again: 强制“智能运行”模式忽略已保存的参数，并重新向大型语言模型（LLM）发起请求。
 GPU layers for llama.cpp (-1 = auto): '`lama.cpp` 中的 GPU 层（-1 表示自动选择）'

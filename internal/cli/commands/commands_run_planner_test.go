@@ -22,24 +22,35 @@ func TestBuildVLLMServeArgs(t *testing.T) {
 		gpuMemUtil:             0.88,
 		dtype:                  "float16",
 		tensorParallelSize:     2,
+		attentionBackend:       "TRITON_ATTN",
 		enforceEager:           true,
 		optimizationLevel:      0,
 		maxNumSeqs:             4,
+		maxNumBatchedTokens:    256,
+		compilationConfig:      `{"cudagraph_mode":"full_and_piecewise","cudagraph_capture_sizes":[1]}`,
+		skipMMProfiling:        true,
+		limitMMPerPrompt:       `{"image":0,"video":0}`,
 		disableCustomAllReduce: true,
 	}
-	args := buildVLLMServeArgs("org/repo", "0.0.0.0", 8080, defaults, true)
+	args := buildVLLMServeArgs("org/repo", "qwen35-27b", "0.0.0.0", 8080, defaults, true)
 	joined := strings.Join(args, " ")
 
 	wantTokens := []string{
-		"serve", "org/repo", "--host", "0.0.0.0", "--port", "8080",
+		"serve", "--model", "org/repo", "--host", "0.0.0.0", "--port", "8080",
+		"--served-model-name", "qwen35-27b",
 		"--dtype", "float16",
 		"--max-model-len", "4096",
 		"--gpu-memory-utilization", "0.88",
 		"--tensor-parallel-size", "2",
+		"--attention-backend", "TRITON_ATTN",
 		"--enforce-eager",
 		"--optimization-level", "0",
 		"--disable-custom-all-reduce",
 		"--max-num-seqs", "4",
+		"--max-num-batched-tokens", "256",
+		"--skip-mm-profiling",
+		"--limit-mm-per-prompt", "{\"image\":0,\"video\":0}",
+		"--compilation-config", "{\"cudagraph_mode\":\"full_and_piecewise\",\"cudagraph_capture_sizes\":[1]}",
 		"--trust-remote-code",
 	}
 	for _, token := range wantTokens {

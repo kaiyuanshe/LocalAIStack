@@ -2,6 +2,7 @@ package modelmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,8 +56,12 @@ type Manager struct {
 }
 
 type DownloadOptions struct {
-	FileHint string
+	FileHint                string
+	AllowModelScopeFallback bool
 }
+
+var ErrModelNotFound = errors.New("model not found")
+var ErrSourceUnavailable = errors.New("model source unavailable")
 
 func NewManager(modelDir string) *Manager {
 	if modelDir == "" {
