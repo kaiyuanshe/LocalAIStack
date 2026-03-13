@@ -207,6 +207,31 @@ func TestBuildVLLMServeArgs_SkipsUnsetOptimizationLevel(t *testing.T) {
 	}
 }
 
+func TestFinalizeVLLMRunParams_UserOverridesCanBeReapplied(t *testing.T) {
+	info := system.BaseInfoSummary{
+		MemoryKB: 32691216,
+		GPUName:  "Tesla V100-SXM2-16GB",
+		GPUCount: 2,
+	}
+
+	got := finalizeVLLMRunParams(info, vllmRunDefaults{
+		maxModelLen:        32768,
+		gpuMemUtil:         0.95,
+		tensorParallelSize: 2,
+	}, false)
+
+	// finalize keeps conservative defaults; caller may reapply explicit user flags afterward.
+	got.maxModelLen = clampInt(32768, 256, 131072)
+	got.gpuMemUtil = clampFloat(0.95, 0, 0.98)
+
+	if got.maxModelLen != 32768 {
+		t.Fatalf("expected maxModelLen=32768, got %d", got.maxModelLen)
+	}
+	if got.gpuMemUtil != 0.95 {
+		t.Fatalf("expected gpuMemUtil=0.95, got %.2f", got.gpuMemUtil)
+	}
+}
+
 func TestFinalizeVLLMRunParams_LegacyMultimodalSkipsTextOnlyFlags(t *testing.T) {
 	info := system.BaseInfoSummary{
 		MemoryKB: 32691216,

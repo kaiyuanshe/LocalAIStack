@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -274,6 +276,115 @@ func TestSuggestAdvicePromptIncludesRecommendationsAndBaseInfo(t *testing.T) {
 	}
 }
 
+func TestExtractSmartRunFailureSummaryUsesQwenModel(t *testing.T) {
+	var seenModels []string
+	var seenTimeouts []int
+	original := llmRegistryFactory
+	defer func() { llmRegistryFactory = original }()
+	llmRegistryFactory = func(cfg config.LLMConfig) (*llm.Registry, error) {
+		registry := llm.NewRegistry()
+		if err := registry.Register(modelCaptureLLMProvider{seenModels: &seenModels, seenTimeouts: &seenTimeouts}); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	}
+
+	cfg := config.LLMConfig{Provider: "capture-model", Model: "base-model", TimeoutSeconds: 5}
+	summary, err := extractSmartRunFailureSummary(context.Background(), cfg, "llama.cpp", "CUDA out of memory")
+	if err != nil {
+		t.Fatalf("extractSmartRunFailureSummary returned error: %v", err)
+	}
+	if !strings.Contains(summary, "oom") {
+		t.Fatalf("expected extracted summary to contain parsed content, got %q", summary)
+	}
+	if len(seenModels) != 1 || seenModels[0] != smartRunErrorExtractModel {
+		t.Fatalf("expected model %q, got %+v", smartRunErrorExtractModel, seenModels)
+	}
+	if len(seenTimeouts) != 1 || seenTimeouts[0] != smartRunRecoveryTimeoutSeconds {
+		t.Fatalf("expected timeout %d, got %+v", smartRunRecoveryTimeoutSeconds, seenTimeouts)
+	}
+}
+
+func TestSuggestLlamaAdviceFromFailureUsesKimiModelAndRecommendations(t *testing.T) {
+	var prompts []string
+	var seenModels []string
+	var seenTimeouts []int
+	original := llmRegistryFactory
+	originalRecommendationsLoader := llamaRunRecommendationsLoader
+	defer func() {
+		llmRegistryFactory = original
+		llamaRunRecommendationsLoader = originalRecommendationsLoader
+	}()
+	llmRegistryFactory = func(cfg config.LLMConfig) (*llm.Registry, error) {
+		registry := llm.NewRegistry()
+		if err := registry.Register(failureAdviceCaptureProvider{
+			prompts:      &prompts,
+			seenModels:   &seenModels,
+			seenTimeouts: &seenTimeouts,
+		}); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	}
+	llamaRunRecommendationsLoader = func() (string, error) {
+		return "# llama guide", nil
+	}
+
+	cfg := config.LLMConfig{Provider: "failure-capture", Model: "base-model", TimeoutSeconds: 5}
+	info := system.BaseInfoSummary{CPUCores: 16, MemoryKB: 64 * 1024 * 1024}
+	advice, err := suggestLlamaAdviceFromFailure(context.Background(), cfg, "demo", "/tmp/demo.gguf", info, llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}, llamaBatchParams{BatchSize: 256, UBatchSize: 128}, llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20}, "", "oom on startup")
+	if err != nil {
+		t.Fatalf("suggestLlamaAdviceFromFailure returned error: %v", err)
+	}
+	if advice.CtxSize == nil || *advice.CtxSize != 4096 {
+		t.Fatalf("expected ctx_size=4096 from response, got %+v", advice.CtxSize)
+	}
+	if len(seenModels) != 1 || seenModels[0] != smartRunRetryPlannerModel {
+		t.Fatalf("expected model %q, got %+v", smartRunRetryPlannerModel, seenModels)
+	}
+	if len(seenTimeouts) != 1 || seenTimeouts[0] != smartRunRecoveryTimeoutSeconds {
+		t.Fatalf("expected timeout %d, got %+v", smartRunRecoveryTimeoutSeconds, seenTimeouts)
+	}
+	if len(prompts) != 1 || !strings.Contains(prompts[0], "oom on startup") || !strings.Contains(prompts[0], "# llama guide") {
+		t.Fatalf("expected prompt to include failure summary and recommendations, got %+v", prompts)
+	}
+}
+
+func TestGenerateLLMTextWrapsRequestContextOnError(t *testing.T) {
+	original := llmRegistryFactory
+	defer func() { llmRegistryFactory = original }()
+	llmRegistryFactory = func(cfg config.LLMConfig) (*llm.Registry, error) {
+		registry := llm.NewRegistry()
+		if err := registry.Register(errorLLMProvider{}); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	}
+
+	_, err := generateLLMText(context.Background(), config.LLMConfig{
+		Provider:       "error-provider",
+		Model:          "base-model",
+		BaseURL:        "https://api.siliconflow.cn/v1/chat/completions",
+		TimeoutSeconds: 90,
+	}, smartRunErrorExtractModel, "test prompt")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	text := err.Error()
+	for _, part := range []string{
+		"provider=error-provider",
+		"model=" + smartRunErrorExtractModel,
+		"base_url=https://api.siliconflow.cn/v1/chat/completions",
+		"timeout=90s",
+		"prompt_bytes=11",
+		"error_type=context_deadline_exceeded",
+	} {
+		if !strings.Contains(text, part) {
+			t.Fatalf("expected wrapped error to contain %q, got %q", part, text)
+		}
+	}
+}
+
 func TestSaveAndLoadSmartRunAdvice(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -438,6 +549,51 @@ func TestEvaluateSmartRunOutcome(t *testing.T) {
 	}
 }
 
+func TestStartCommandAndPersistAdviceRetriesAfterFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	var attempts int
+	var capturedLog string
+	cmd := &cobra.Command{Use: "test"}
+	cmd.SetIn(bytes.NewBufferString("Y\n"))
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+
+	buildCmd := func(stdoutWriter, stderrWriter io.Writer) (*exec.Cmd, error) {
+		attempts++
+		script := "echo recovered >&2"
+		if attempts == 1 {
+			script = "echo first-failure >&2; exit 1"
+		}
+		runCmd := exec.Command("bash", "-lc", script)
+		runCmd.Stdout = stdoutWriter
+		runCmd.Stderr = stderrWriter
+		return runCmd, nil
+	}
+
+	recovery := &smartRunRecoveryPlan{
+		Enabled: true,
+		Recover: func(ctx context.Context, startupLog string) (*smartRunAdviceEnvelope, error) {
+			capturedLog = startupLog
+			return &smartRunAdviceEnvelope{Llama: llamaPlannerAdvice{CtxSize: intPtr(4096)}}, nil
+		},
+	}
+
+	if err := startCommandAndPersistAdvice(cmd, buildCmd, "llama.cpp", "demo/model", "demo.gguf", nil, recovery); err != nil {
+		t.Fatalf("startCommandAndPersistAdvice returned error: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if !strings.Contains(capturedLog, "first-failure") {
+		t.Fatalf("expected startup log to include first failure output, got %q", capturedLog)
+	}
+	if !strings.Contains(stdout.String(), "Retrying llama.cpp with refined smart-run parameters.") {
+		t.Fatalf("expected retry message in stdout, got %q", stdout.String())
+	}
+}
+
 type stubLLMProvider struct{}
 
 func (p stubLLMProvider) Name() string { return "stub" }
@@ -475,4 +631,41 @@ func (p captureLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Re
 		return llm.Response{Text: `{"llama":{"ctx_size":8192}}`}, nil
 	}
 	return llm.Response{Text: `{"vllm":{"max_model_len":6144}}`}, nil
+}
+
+type modelCaptureLLMProvider struct {
+	seenModels   *[]string
+	seenTimeouts *[]int
+}
+
+func (p modelCaptureLLMProvider) Name() string { return "capture-model" }
+
+func (p modelCaptureLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Response, error) {
+	*p.seenModels = append(*p.seenModels, req.Model)
+	*p.seenTimeouts = append(*p.seenTimeouts, req.Timeout)
+	return llm.Response{Text: `{"summary":"oom","errors":["CUDA out of memory"]}`}, nil
+}
+
+type failureAdviceCaptureProvider struct {
+	prompts      *[]string
+	seenModels   *[]string
+	seenTimeouts *[]int
+}
+
+func (p failureAdviceCaptureProvider) Name() string { return "failure-capture" }
+
+func (p failureAdviceCaptureProvider) Generate(_ context.Context, req llm.Request) (llm.Response, error) {
+	*p.prompts = append(*p.prompts, req.Prompt)
+	*p.seenModels = append(*p.seenModels, req.Model)
+	*p.seenTimeouts = append(*p.seenTimeouts, req.Timeout)
+	return llm.Response{Text: `{"llama":{"ctx_size":4096},"reason":"reduced ctx after failure"}`}, nil
+}
+
+type errorLLMProvider struct{}
+
+func (p errorLLMProvider) Name() string { return "error-provider" }
+
+func (p errorLLMProvider) Generate(_ context.Context, req llm.Request) (llm.Response, error) {
+	_ = req
+	return llm.Response{}, context.DeadlineExceeded
 }

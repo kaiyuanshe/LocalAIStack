@@ -1,10 +1,14 @@
 package commands
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,13 +37,19 @@ func init() {
 
 var llmRegistryFactory = llm.NewRegistryFromConfig
 var llamaRunRecommendationsLoader = loadLlamaRunRecommendations
+var vllmRunRecommendationsLoader = loadVLLMRunRecommendations
 var baseInfoPromptLoader = loadBaseInfoPrompt
 
 const (
 	llamaRunRecommendationsRelativePath = "llama.cpp/RUN_PARAMS_RECOMMENDATIONS.md"
+	vllmRunRecommendationsRelativePath  = "vllm/RUN_PARAMS_RECOMMENDATIONS.md"
 	llamaRunRecommendationsMaxBytes     = 16 * 1024
 	baseInfoPromptMaxBytes              = 16 * 1024
 	smartRunAdviceSchemaVersion         = 3
+	smartRunFailureLogMaxBytes          = 16 * 1024
+	smartRunErrorExtractModel           = "deepseek-ai/DeepSeek-V3.2"
+	smartRunRetryPlannerModel           = "deepseek-ai/DeepSeek-V3.2"
+	smartRunRecoveryTimeoutSeconds      = 90
 )
 
 func RegisterModuleCommands(rootCmd *cobra.Command) {
@@ -767,6 +777,12 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					}
 				}
 				vllmDefaults = finalizeVLLMRunParams(baseInfo, vllmDefaults, textOnlyModel)
+				if vllmMaxModelLenChanged && vllmMaxModelLen > 0 {
+					vllmDefaults.maxModelLen = clampInt(vllmMaxModelLen, 256, 131072)
+				}
+				if vllmGpuMemUtilChanged && vllmGpuMemUtil > 0 {
+					vllmDefaults.gpuMemUtil = clampFloat(vllmGpuMemUtil, 0, 0.98)
+				}
 				if smartRun && textOnly {
 					vllmDefaults.enforceEager = false
 					vllmDefaults.optimizationLevel = -1
@@ -785,14 +801,62 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					printDryRunCommand(cmd, vllmPath, args, vllmDefaults.env)
 					return nil
 				}
-				runCmd := exec.CommandContext(cmd.Context(), vllmPath, args...)
-				if len(vllmDefaults.env) > 0 {
-					runCmd.Env = append(os.Environ(), vllmDefaults.env...)
+				buildVLLMCmd := func(stdout, stderr io.Writer) (*exec.Cmd, error) {
+					servedModelName := suggestVLLMServedModelName(modelID)
+					args := buildVLLMServeArgs(modelRef, servedModelName, host, port, vllmDefaults, enableTrustRemoteCode)
+					runCmd := exec.CommandContext(cmd.Context(), vllmPath, args...)
+					if len(vllmDefaults.env) > 0 {
+						runCmd.Env = append(os.Environ(), vllmDefaults.env...)
+					}
+					runCmd.Stdout = stdout
+					runCmd.Stderr = stderr
+					runCmd.Stdin = cmd.InOrStdin()
+					return runCmd, nil
 				}
-				runCmd.Stdout = cmd.OutOrStdout()
-				runCmd.Stderr = cmd.ErrOrStderr()
-				runCmd.Stdin = cmd.InOrStdin()
-				return startCommandAndPersistAdvice(cmd, runCmd, "vllm", modelID, modelRef, vllmAdviceToPersist)
+				var recovery *smartRunRecoveryPlan
+				if smartRun && cfg != nil {
+					recovery = &smartRunRecoveryPlan{
+						Enabled: true,
+						Recover: func(ctx context.Context, startupLog string) (*smartRunAdviceEnvelope, error) {
+							cmd.Printf("Smart-run recovery (vllm): startup_log_bytes=%d provider=%s base_url=%s extract_model=%s retry_model=%s timeout=%ds\n",
+								len(startupLog),
+								sanitizeLogValue(strings.TrimSpace(cfg.LLM.Provider)),
+								sanitizeLogValue(strings.TrimSpace(cfg.LLM.BaseURL)),
+								smartRunErrorExtractModel,
+								smartRunRetryPlannerModel,
+								withSmartRunRecoveryTimeout(cfg.LLM).TimeoutSeconds,
+							)
+							if smartRunDebug {
+								cmd.Printf("Smart-run recovery (vllm): startup_log_excerpt=%s\n", summarizeForLog(startupLog, 600))
+							}
+							cmd.Printf("Smart-run recovery (vllm): extracting key errors with %s\n", smartRunErrorExtractModel)
+							summary, err := extractSmartRunFailureSummary(ctx, cfg.LLM, "vllm", startupLog)
+							if err != nil {
+								cmd.Printf("Smart-run recovery (vllm): extraction failed: %v\n", err)
+								return nil, err
+							}
+							cmd.Printf("Smart-run recovery (vllm): extracted_summary=%s\n", summarizeForLog(summary, 400))
+							cmd.Printf("Smart-run recovery (vllm): requesting revised parameters with %s\n", smartRunRetryPlannerModel)
+							advice, err := suggestVLLMAdviceFromFailure(ctx, cfg.LLM, modelID, modelRef, baseInfo, vllmDefaults, enableTrustRemoteCode, summary)
+							if err != nil {
+								cmd.Printf("Smart-run recovery (vllm): parameter replanning failed: %v\n", err)
+								return nil, err
+							}
+							applyVLLMAdvice(&vllmDefaults, &enableTrustRemoteCode, advice, map[string]bool{
+								"max_model_len":          vllmMaxModelLenChanged,
+								"gpu_memory_utilization": vllmGpuMemUtilChanged,
+								"trust_remote_code":      vllmTrustRemoteCodeChanged,
+							})
+							vllmDefaults = finalizeVLLMRunParams(baseInfo, vllmDefaults, textOnlyModel)
+							env := &smartRunAdviceEnvelope{
+								Reason: "Recovered after startup failure via Qwen/Kimi smart-run chain",
+								VLLM:   advice,
+							}
+							return env, nil
+						},
+					}
+				}
+				return startCommandAndPersistAdvice(cmd, buildVLLMCmd, "vllm", modelID, modelRef, vllmAdviceToPersist, recovery)
 			}
 
 			modelPath, autoSelected, err := resolveGGUFFile(modelDir, ggufFiles, selectedFile)
@@ -1000,14 +1064,88 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				printDryRunCommand(cmd, llamaPath, argsList, nil)
 				return nil
 			}
-			runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
-			if err := addLlamaCppLibraryPath(runCmd); err != nil {
-				return err
+			buildLlamaCmd := func(stdout, stderr io.Writer) (*exec.Cmd, error) {
+				argsList := buildLlamaServerArgs(
+					modelPath,
+					defaults,
+					host,
+					port,
+					llamaSamplingParams{
+						Temperature:     sampling.Temperature,
+						TopP:            sampling.TopP,
+						TopK:            sampling.TopK,
+						MinP:            sampling.MinP,
+						PresencePenalty: sampling.PresencePenalty,
+						RepeatPenalty:   sampling.RepeatPenalty,
+					},
+					llamaBatchParams{BatchSize: resolvedBatch, UBatchSize: resolvedUBatch},
+					chatTemplateKwargs,
+				)
+				runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
+				if err := addLlamaCppLibraryPath(runCmd); err != nil {
+					return nil, err
+				}
+				runCmd.Stdout = stdout
+				runCmd.Stderr = stderr
+				runCmd.Stdin = cmd.InOrStdin()
+				return runCmd, nil
 			}
-			runCmd.Stdout = cmd.OutOrStdout()
-			runCmd.Stderr = cmd.ErrOrStderr()
-			runCmd.Stdin = cmd.InOrStdin()
-			return startCommandAndPersistAdvice(cmd, runCmd, "llama.cpp", modelID, filepath.Base(modelPath), llamaAdviceToPersist)
+			var recovery *smartRunRecoveryPlan
+			if smartRun && cfg != nil {
+				recovery = &smartRunRecoveryPlan{
+					Enabled: true,
+					Recover: func(ctx context.Context, startupLog string) (*smartRunAdviceEnvelope, error) {
+						cmd.Printf("Smart-run recovery (llama.cpp): startup_log_bytes=%d provider=%s base_url=%s extract_model=%s retry_model=%s timeout=%ds\n",
+							len(startupLog),
+							sanitizeLogValue(strings.TrimSpace(cfg.LLM.Provider)),
+							sanitizeLogValue(strings.TrimSpace(cfg.LLM.BaseURL)),
+							smartRunErrorExtractModel,
+							smartRunRetryPlannerModel,
+							withSmartRunRecoveryTimeout(cfg.LLM).TimeoutSeconds,
+						)
+						if smartRunDebug {
+							cmd.Printf("Smart-run recovery (llama.cpp): startup_log_excerpt=%s\n", summarizeForLog(startupLog, 600))
+						}
+						cmd.Printf("Smart-run recovery (llama.cpp): extracting key errors with %s\n", smartRunErrorExtractModel)
+						summary, err := extractSmartRunFailureSummary(ctx, cfg.LLM, "llama.cpp", startupLog)
+						if err != nil {
+							cmd.Printf("Smart-run recovery (llama.cpp): extraction failed: %v\n", err)
+							return nil, err
+						}
+						cmd.Printf("Smart-run recovery (llama.cpp): extracted_summary=%s\n", summarizeForLog(summary, 400))
+						cmd.Printf("Smart-run recovery (llama.cpp): requesting revised parameters with %s\n", smartRunRetryPlannerModel)
+						advice, err := suggestLlamaAdviceFromFailure(ctx, cfg.LLM, modelID, modelPath, baseInfo, defaults, llamaBatchParams{
+							BatchSize:  resolvedBatch,
+							UBatchSize: resolvedUBatch,
+						}, sampling, chatTemplateKwargs, summary)
+						if err != nil {
+							cmd.Printf("Smart-run recovery (llama.cpp): parameter replanning failed: %v\n", err)
+							return nil, err
+						}
+						applyLlamaAdvice(&defaults, &resolvedBatch, &resolvedUBatch, &sampling, &chatTemplateKwargs, advice, map[string]bool{
+							"threads":              threadsChanged,
+							"ctx_size":             ctxSizeChanged,
+							"n_gpu_layers":         gpuLayersChanged,
+							"tensor_split":         tensorSplitChanged,
+							"batch_size":           batchSizeChanged,
+							"ubatch_size":          ubatchSizeChanged,
+							"temperature":          temperatureChanged,
+							"top_p":                topPChanged,
+							"top_k":                topKChanged,
+							"min_p":                minPChanged,
+							"presence_penalty":     presencePenaltyChanged,
+							"repeat_penalty":       repeatPenaltyChanged,
+							"chat_template_kwargs": chatTemplateKwargsChanged,
+						})
+						env := &smartRunAdviceEnvelope{
+							Reason: "Recovered after startup failure via Qwen/Kimi smart-run chain",
+							Llama:  advice,
+						}
+						return env, nil
+					},
+				}
+			}
+			return startCommandAndPersistAdvice(cmd, buildLlamaCmd, "llama.cpp", modelID, filepath.Base(modelPath), llamaAdviceToPersist, recovery)
 		},
 	}
 	runCmd.Flags().StringP("source", "s", "", "Source of the model (ollama, huggingface, modelscope)")
@@ -1425,11 +1563,19 @@ func resolveBaseInfoPath() string {
 }
 
 func loadLlamaRunRecommendations() (string, error) {
+	return loadRunRecommendations(llamaRunRecommendationsRelativePath)
+}
+
+func loadVLLMRunRecommendations() (string, error) {
+	return loadRunRecommendations(vllmRunRecommendationsRelativePath)
+}
+
+func loadRunRecommendations(relativePath string) (string, error) {
 	modulesRoot, err := module.FindModulesRoot()
 	if err != nil {
 		return "", err
 	}
-	docPath := filepath.Join(modulesRoot, llamaRunRecommendationsRelativePath)
+	docPath := filepath.Join(modulesRoot, relativePath)
 	raw, err := os.ReadFile(docPath)
 	if err != nil {
 		return "", err
@@ -1999,16 +2145,82 @@ func printDryRunCommand(cmd *cobra.Command, binary string, args []string, extraE
 	}
 }
 
-func startCommandAndPersistAdvice(cmd *cobra.Command, runCmd *exec.Cmd, runtimeName, modelID, selector string, advice *smartRunAdviceEnvelope) error {
-	if err := runCmd.Start(); err != nil {
+type smartRunRecoveryPlan struct {
+	Enabled bool
+	Recover func(ctx context.Context, startupLog string) (*smartRunAdviceEnvelope, error)
+}
+
+func startCommandAndPersistAdvice(cmd *cobra.Command, buildCmd func(stdout, stderr io.Writer) (*exec.Cmd, error), runtimeName, modelID, selector string, advice *smartRunAdviceEnvelope, recovery *smartRunRecoveryPlan) error {
+	startupLog, err := executeManagedRunCommand(cmd, buildCmd, runtimeName, modelID, selector, advice)
+	if err == nil {
+		return nil
+	}
+	if recovery == nil || !recovery.Enabled || recovery.Recover == nil {
 		return err
+	}
+	if !promptSmartRunFailureSubmission(cmd, runtimeName) {
+		return err
+	}
+	refinedAdvice, recoverErr := recovery.Recover(cmd.Context(), startupLog)
+	if recoverErr != nil {
+		cmd.Printf("Warning: smart-run recovery failed: %v\n", recoverErr)
+		return err
+	}
+	cmd.Printf("Retrying %s with refined smart-run parameters.\n", runtimeName)
+	_, retryErr := executeManagedRunCommand(cmd, buildCmd, runtimeName, modelID, selector, refinedAdvice)
+	if retryErr != nil {
+		return fmt.Errorf("initial run failed: %v; retry with refined smart-run parameters failed: %w", err, retryErr)
+	}
+	return nil
+}
+
+func executeManagedRunCommand(cmd *cobra.Command, buildCmd func(stdout, stderr io.Writer) (*exec.Cmd, error), runtimeName, modelID, selector string, advice *smartRunAdviceEnvelope) (string, error) {
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
+	runCmd, err := buildCmd(io.MultiWriter(cmd.OutOrStdout(), &stdoutBuf), io.MultiWriter(cmd.ErrOrStderr(), &stderrBuf))
+	if err != nil {
+		return buildManagedRunLog(&stdoutBuf, &stderrBuf, err), err
+	}
+	if err := runCmd.Start(); err != nil {
+		return buildManagedRunLog(&stdoutBuf, &stderrBuf, err), err
 	}
 	if advice != nil {
 		if err := saveSmartRunAdvice(runtimeName, modelID, selector, *advice); err != nil {
 			cmd.Printf("Warning: failed to save smart-run parameters: %v\n", err)
 		}
 	}
-	return runCmd.Wait()
+	waitErr := runCmd.Wait()
+	return buildManagedRunLog(&stdoutBuf, &stderrBuf, waitErr), waitErr
+}
+
+func buildManagedRunLog(stdoutBuf, stderrBuf *bytes.Buffer, runErr error) string {
+	parts := make([]string, 0, 3)
+	if stdout := strings.TrimSpace(stdoutBuf.String()); stdout != "" {
+		parts = append(parts, "stdout:\n"+stdout)
+	}
+	if stderr := strings.TrimSpace(stderrBuf.String()); stderr != "" {
+		parts = append(parts, "stderr:\n"+stderr)
+	}
+	if runErr != nil {
+		parts = append(parts, "process_error:\n"+runErr.Error())
+	}
+	combined := strings.TrimSpace(strings.Join(parts, "\n\n"))
+	if len(combined) > smartRunFailureLogMaxBytes {
+		combined = strings.TrimSpace(combined[:smartRunFailureLogMaxBytes]) + "\n\n[truncated]"
+	}
+	return combined
+}
+
+func promptSmartRunFailureSubmission(cmd *cobra.Command, runtimeName string) bool {
+	cmd.Printf("%s startup failed. Submit the error log to LLMs for better %s parameters? [Y/N]: ", runtimeName, runtimeName)
+	reader := bufio.NewReader(cmd.InOrStdin())
+	line, err := reader.ReadString('\n')
+	if err != nil && len(line) == 0 {
+		cmd.Printf("\n")
+		return false
+	}
+	choice := strings.ToUpper(strings.TrimSpace(line))
+	return choice == "Y" || choice == "YES"
 }
 
 func evaluateSmartRunOutcome(enabled bool, plannerErr error, strict bool) (source, reason string, fatal error) {
@@ -2207,15 +2419,118 @@ func printSmartRunDebug(cmd *cobra.Command, runtimeName, source, reason string) 
 	cmd.Printf("Smart run planner (%s): source=%s reason=%s\n", runtimeName, source, reason)
 }
 
-func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelPath string, info system.BaseInfoSummary, defaults llamaRunDefaults, batch llamaBatchParams, sampling llamaSamplingParams, chatTemplateKwargs string) (llamaPlannerAdvice, error) {
+type smartRunFailureExtraction struct {
+	Summary string   `json:"summary"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
+func generateLLMText(ctx context.Context, cfg config.LLMConfig, modelOverride, prompt string) (string, error) {
 	registry, err := llmRegistryFactory(cfg)
 	if err != nil {
-		return llamaPlannerAdvice{}, err
+		return "", err
 	}
 	provider, err := registry.Provider(cfg.Provider)
 	if err != nil {
-		return llamaPlannerAdvice{}, err
+		return "", err
 	}
+	resp, err := provider.Generate(ctx, llm.Request{
+		Prompt:  prompt,
+		Model:   modelOverride,
+		Timeout: cfg.TimeoutSeconds,
+	})
+	if err != nil {
+		errorType := "generic"
+		if errors.Is(err, context.DeadlineExceeded) {
+			errorType = "context_deadline_exceeded"
+		} else {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				errorType = "network_timeout"
+			}
+		}
+		return "", fmt.Errorf("llm generate failed: provider=%s model=%s base_url=%s timeout=%ds prompt_bytes=%d error_type=%s: %w",
+			strings.TrimSpace(cfg.Provider),
+			strings.TrimSpace(modelOverride),
+			sanitizeLogValue(strings.TrimSpace(cfg.BaseURL)),
+			cfg.TimeoutSeconds,
+			len(prompt),
+			errorType,
+			err,
+		)
+	}
+	return strings.TrimSpace(resp.Text), nil
+}
+
+func withSmartRunRecoveryTimeout(cfg config.LLMConfig) config.LLMConfig {
+	recovered := cfg
+	if recovered.TimeoutSeconds < smartRunRecoveryTimeoutSeconds {
+		recovered.TimeoutSeconds = smartRunRecoveryTimeoutSeconds
+	}
+	return recovered
+}
+
+func sanitizeLogValue(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "n/a"
+	}
+	return value
+}
+
+func summarizeForLog(value string, maxLen int) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "n/a"
+	}
+	trimmed = strings.ReplaceAll(trimmed, "\n", " | ")
+	if maxLen > 0 && len(trimmed) > maxLen {
+		return trimmed[:maxLen] + "...[truncated]"
+	}
+	return trimmed
+}
+
+func extractSmartRunFailureSummary(ctx context.Context, cfg config.LLMConfig, runtimeName, startupLog string) (string, error) {
+	cfg = withSmartRunRecoveryTimeout(cfg)
+	prompt := fmt.Sprintf("You are a startup log triage assistant for LocalAIStack.\n"+
+		"Analyze the %s startup failure log and extract only the key errors that matter for runtime parameter tuning.\n"+
+		"Return JSON only.\n"+
+		"Schema:\n"+
+		"{\"summary\":string,\"errors\":[string]}\n"+
+		"Rules:\n"+
+		"- keep the summary concise and factual.\n"+
+		"- mention the most likely parameter-related failure causes first.\n"+
+		"- keep original error keywords when useful.\n"+
+		"- do not suggest new parameters in this step.\n"+
+		"Failure log:\n"+
+		"```text\n%s\n```", runtimeName, startupLog)
+	text, err := generateLLMText(ctx, cfg, smartRunErrorExtractModel, prompt)
+	if err != nil {
+		return "", err
+	}
+	payload := extractFirstJSONObject(text)
+	if payload == "" {
+		return "", fmt.Errorf("smart-run failure extraction did not include JSON")
+	}
+	var extracted smartRunFailureExtraction
+	if err := json.Unmarshal([]byte(payload), &extracted); err != nil {
+		return "", err
+	}
+	parts := make([]string, 0, len(extracted.Errors)+1)
+	if summary := strings.TrimSpace(extracted.Summary); summary != "" {
+		parts = append(parts, summary)
+	}
+	for _, item := range extracted.Errors {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	joined := strings.TrimSpace(strings.Join(parts, "\n"))
+	if joined == "" {
+		return "", fmt.Errorf("smart-run failure extraction was empty")
+	}
+	return joined, nil
+}
+
+func suggestLlamaAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelPath string, info system.BaseInfoSummary, defaults llamaRunDefaults, batch llamaBatchParams, sampling llamaSamplingParams, chatTemplateKwargs string) (llamaPlannerAdvice, error) {
 	input := map[string]any{
 		"runtime": "llama.cpp",
 		"model": map[string]any{
@@ -2259,30 +2574,18 @@ Input:
 	if baseInfoContent, baseInfoErr := baseInfoPromptLoader(); baseInfoErr == nil {
 		prompt = fmt.Sprintf("%s\nCollected base hardware info (json):\n```json\n%s\n```", prompt, baseInfoContent)
 	}
-	resp, err := provider.Generate(ctx, llm.Request{
-		Prompt:  prompt,
-		Model:   cfg.Model,
-		Timeout: cfg.TimeoutSeconds,
-	})
+	text, err := generateLLMText(ctx, cfg, cfg.Model, prompt)
 	if err != nil {
 		return llamaPlannerAdvice{}, err
 	}
 	var env smartRunAdviceEnvelope
-	if err := parseSmartRunAdvice(resp.Text, &env); err != nil {
+	if err := parseSmartRunAdvice(text, &env); err != nil {
 		return llamaPlannerAdvice{}, err
 	}
 	return env.Llama, nil
 }
 
 func suggestVLLMAdvice(ctx context.Context, cfg config.LLMConfig, modelID, modelRef string, info system.BaseInfoSummary, defaults vllmRunDefaults, trustRemoteCode bool) (vllmPlannerAdvice, error) {
-	registry, err := llmRegistryFactory(cfg)
-	if err != nil {
-		return vllmPlannerAdvice{}, err
-	}
-	provider, err := registry.Provider(cfg.Provider)
-	if err != nil {
-		return vllmPlannerAdvice{}, err
-	}
 	input := map[string]any{
 		"runtime": "vllm",
 		"model": map[string]any{
@@ -2318,16 +2621,122 @@ Input:
 	if baseInfoContent, baseInfoErr := baseInfoPromptLoader(); baseInfoErr == nil {
 		prompt = fmt.Sprintf("%s\nCollected base hardware info (json):\n```json\n%s\n```", prompt, baseInfoContent)
 	}
-	resp, err := provider.Generate(ctx, llm.Request{
-		Prompt:  prompt,
-		Model:   cfg.Model,
-		Timeout: cfg.TimeoutSeconds,
-	})
+	text, err := generateLLMText(ctx, cfg, cfg.Model, prompt)
 	if err != nil {
 		return vllmPlannerAdvice{}, err
 	}
 	var env smartRunAdviceEnvelope
-	if err := parseSmartRunAdvice(resp.Text, &env); err != nil {
+	if err := parseSmartRunAdvice(text, &env); err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	return env.VLLM, nil
+}
+
+func suggestLlamaAdviceFromFailure(ctx context.Context, cfg config.LLMConfig, modelID, modelPath string, info system.BaseInfoSummary, defaults llamaRunDefaults, batch llamaBatchParams, sampling llamaSamplingParams, chatTemplateKwargs, failureSummary string) (llamaPlannerAdvice, error) {
+	cfg = withSmartRunRecoveryTimeout(cfg)
+	input := map[string]any{
+		"runtime": "llama.cpp",
+		"model": map[string]any{
+			"id":   modelID,
+			"path": modelPath,
+		},
+		"hardware": info,
+		"current_params": map[string]any{
+			"threads":              defaults.threads,
+			"ctx_size":             defaults.ctxSize,
+			"n_gpu_layers":         defaults.gpuLayers,
+			"tensor_split":         defaults.tensorSplit,
+			"batch_size":           batch.BatchSize,
+			"ubatch_size":          batch.UBatchSize,
+			"temperature":          sampling.Temperature,
+			"top_p":                sampling.TopP,
+			"top_k":                sampling.TopK,
+			"min_p":                sampling.MinP,
+			"presence_penalty":     sampling.PresencePenalty,
+			"repeat_penalty":       sampling.RepeatPenalty,
+			"chat_template_kwargs": chatTemplateKwargs,
+		},
+		"failure_summary": failureSummary,
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	recommendations, recommendationsErr := llamaRunRecommendationsLoader()
+	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
+The model failed to start with the current llama.cpp parameters.
+Use the failure summary and the tuning guide to produce safer replacement parameters.
+Return JSON only.
+Schema:
+{"llama":{"threads":int,"ctx_size":int,"n_gpu_layers":int,"tensor_split":string,"batch_size":int,"ubatch_size":int,"temperature":number,"top_p":number,"top_k":int,"min_p":number,"presence_penalty":number,"repeat_penalty":number,"chat_template_kwargs":string},"reason":string}
+Rules:
+- prioritize successful startup and stability over speed.
+- only change parameters that help address the failure.
+- do not add new fields.
+Input:
+%s`, string(payload))
+	if recommendationsErr == nil {
+		prompt = fmt.Sprintf("%s\nReference tuning guide for llama.cpp (markdown):\n```markdown\n%s\n```", prompt, recommendations)
+	}
+	text, err := generateLLMText(ctx, cfg, smartRunRetryPlannerModel, prompt)
+	if err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	var env smartRunAdviceEnvelope
+	if err := parseSmartRunAdvice(text, &env); err != nil {
+		return llamaPlannerAdvice{}, err
+	}
+	return env.Llama, nil
+}
+
+func suggestVLLMAdviceFromFailure(ctx context.Context, cfg config.LLMConfig, modelID, modelRef string, info system.BaseInfoSummary, defaults vllmRunDefaults, trustRemoteCode bool, failureSummary string) (vllmPlannerAdvice, error) {
+	cfg = withSmartRunRecoveryTimeout(cfg)
+	input := map[string]any{
+		"runtime": "vllm",
+		"model": map[string]any{
+			"id":  modelID,
+			"ref": modelRef,
+		},
+		"hardware": info,
+		"current_params": map[string]any{
+			"max_model_len":             defaults.maxModelLen,
+			"gpu_memory_utilization":    defaults.gpuMemUtil,
+			"dtype":                     defaults.dtype,
+			"tensor_parallel_size":      defaults.tensorParallelSize,
+			"enforce_eager":             defaults.enforceEager,
+			"optimization_level":        defaults.optimizationLevel,
+			"max_num_seqs":              defaults.maxNumSeqs,
+			"disable_custom_all_reduce": defaults.disableCustomAllReduce,
+			"trust_remote_code":         trustRemoteCode,
+		},
+		"failure_summary": failureSummary,
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	recommendations, recommendationsErr := vllmRunRecommendationsLoader()
+	prompt := fmt.Sprintf(`You are a runtime tuning assistant for LocalAIStack.
+The model failed to start with the current vLLM parameters.
+Use the failure summary and the tuning guide to produce safer replacement parameters.
+Return JSON only.
+Schema:
+{"vllm":{"max_model_len":int,"gpu_memory_utilization":number,"dtype":string,"tensor_parallel_size":int,"enforce_eager":bool,"optimization_level":int,"max_num_seqs":int,"disable_custom_all_reduce":bool,"trust_remote_code":bool},"reason":string}
+Rules:
+- prioritize successful startup and stability over speed.
+- only change parameters that help address the failure.
+- do not add new fields.
+Input:
+%s`, string(payload))
+	if recommendationsErr == nil {
+		prompt = fmt.Sprintf("%s\nReference tuning guide for vLLM (markdown):\n```markdown\n%s\n```", prompt, recommendations)
+	}
+	text, err := generateLLMText(ctx, cfg, smartRunRetryPlannerModel, prompt)
+	if err != nil {
+		return vllmPlannerAdvice{}, err
+	}
+	var env smartRunAdviceEnvelope
+	if err := parseSmartRunAdvice(text, &env); err != nil {
 		return vllmPlannerAdvice{}, err
 	}
 	return env.VLLM, nil
