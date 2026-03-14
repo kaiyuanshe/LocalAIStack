@@ -69,11 +69,35 @@ environment_rebuild:
       intent: Detect existing vLLM installation
       tool: shell
       command: |
+        bash -euo pipefail <<'SH'
+        candidates=(
+          "${VLLM_VENV_DIR:-$HOME/.localaistack/venv/vllm}/bin/python"
+          "${VLLM_SOURCE_DIR:-$HOME/vllm}/.venv/bin/python"
+          "${VLLM_V100_SOURCE_DIR:-$HOME/1Cat-vLLM}/.venv/bin/python"
+          "$HOME/.venv/vllm/bin/python"
+        )
+
+        for python_bin in "${candidates[@]}"; do
+          if [[ -x "$python_bin" ]] && "$python_bin" - <<'PY'
+        import importlib.util
+        import sys
+        sys.exit(0 if importlib.util.find_spec("vllm") else 1)
+        PY
+          then
+            exit 0
+          fi
+        done
+
+        if command -v vllm >/dev/null 2>&1; then
+          exit 0
+        fi
+
         python3 - <<'PY'
         import importlib.util
         import sys
-        sys.exit(0 if importlib.util.find_spec('vllm') else 1)
+        sys.exit(0 if importlib.util.find_spec("vllm") else 1)
         PY
+        SH
       expected:
         exit_code: 0
   soft_cleanup:

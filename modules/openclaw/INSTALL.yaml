@@ -53,7 +53,43 @@ environment_rebuild:
     - id: R10
       intent: Detect existing OpenClaw binary
       tool: shell
-      command: command -v openclaw
+      command: |
+        bash -euo pipefail <<'SH'
+        NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
+
+        if command -v openclaw >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        for candidate in \
+          "${HOME}/.local/bin/openclaw" \
+          "/usr/local/bin/openclaw" \
+          "/root/.local/bin/openclaw"; do
+          if [[ -x "$candidate" ]]; then
+            exit 0
+          fi
+        done
+
+        if [[ -s "${NVM_DIR}/nvm.sh" ]]; then
+          # shellcheck disable=SC1090
+          source "${NVM_DIR}/nvm.sh"
+          if command -v openclaw >/dev/null 2>&1; then
+            exit 0
+          fi
+          if [[ "$(nvm version default 2>/dev/null || true)" != "N/A" ]]; then
+            nvm use default >/dev/null 2>&1 || true
+            if command -v openclaw >/dev/null 2>&1; then
+              exit 0
+            fi
+          fi
+        fi
+
+        if find "${NVM_DIR}/versions/node" -maxdepth 4 -type f -path '*/bin/openclaw' 2>/dev/null | grep -q .; then
+          exit 0
+        fi
+
+        exit 1
+        SH
       expected:
         exit_code: 0
   soft_cleanup:

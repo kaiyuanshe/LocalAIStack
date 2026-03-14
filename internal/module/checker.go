@@ -52,7 +52,7 @@ func runModuleCheck(name, moduleDir string) error {
 		return i18n.Errorf("failed to read module check script for %q: %w", name, err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "bash", verifyScript)
