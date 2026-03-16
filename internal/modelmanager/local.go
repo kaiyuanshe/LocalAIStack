@@ -19,7 +19,7 @@ func (m *Manager) ResolveLocalModelDir(source ModelSource, modelID string) (stri
 	modelPath := filepath.Join(m.modelDir, modelDir)
 	if _, err := os.Stat(modelPath); err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("model %s not found locally", modelID)
+			return "", fmt.Errorf("model %s not found locally: %w", modelID, os.ErrNotExist)
 		}
 		return "", err
 	}

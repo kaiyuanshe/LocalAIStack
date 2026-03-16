@@ -66,11 +66,13 @@ func (m *Manager) RemoveModel(source ModelSource, modelID string) error {
 		return fmt.Errorf("failed to delete model from %s: %w", source, err)
 	}
 
-	modelPath := filepath.Join(m.modelDir, modelID)
-	if _, err := os.Stat(modelPath); !os.IsNotExist(err) {
+	modelPath, err := m.ResolveLocalModelDir(source, modelID)
+	if err == nil {
 		if err := os.RemoveAll(modelPath); err != nil {
 			return fmt.Errorf("failed to remove local metadata for %s: %w", modelID, err)
 		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to resolve local model path for %s: %w", modelID, err)
 	}
 
 	return nil

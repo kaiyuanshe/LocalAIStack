@@ -11,6 +11,7 @@ import (
 type stubProvider struct {
 	name        ModelSource
 	downloadErr error
+	deletedID   string
 }
 
 func (p *stubProvider) Name() ModelSource {
@@ -26,6 +27,7 @@ func (p *stubProvider) Download(ctx context.Context, modelID string, destPath st
 }
 
 func (p *stubProvider) Delete(ctx context.Context, modelID string) error {
+	p.deletedID = modelID
 	return nil
 }
 
@@ -235,5 +237,47 @@ func TestFindSafetensorsFiles_FollowsDirectorySymlink(t *testing.T) {
 	}
 	if len(files) != 1 {
 		t.Fatalf("unexpected safetensors file count, got %d want 1", len(files))
+	}
+}
+
+func TestManagerRemoveModel_RemovesNormalizedLocalDir(t *testing.T) {
+	modelDir := t.TempDir()
+	localPath := filepath.Join(modelDir, "nvidia_NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4")
+	if err := os.MkdirAll(localPath, 0755); err != nil {
+		t.Fatalf("failed to create local model dir: %v", err)
+	}
+
+	provider := &stubProvider{name: SourceHuggingFace}
+	mgr := NewManager(modelDir)
+	if err := mgr.RegisterProvider(provider); err != nil {
+		t.Fatalf("failed to register provider: %v", err)
+	}
+
+	modelID := "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4"
+	if err := mgr.RemoveModel(SourceHuggingFace, modelID); err != nil {
+		t.Fatalf("RemoveModel returned error: %v", err)
+	}
+	if provider.deletedID != modelID {
+		t.Fatalf("unexpected deleted model id, got %s want %s", provider.deletedID, modelID)
+	}
+	if _, err := os.Stat(localPath); !os.IsNotExist(err) {
+		t.Fatalf("expected local model dir to be removed, stat err=%v", err)
+	}
+}
+
+func TestManagerRemoveModel_IgnoresMissingLocalDirAfterProviderDelete(t *testing.T) {
+	modelDir := t.TempDir()
+	provider := &stubProvider{name: SourceHuggingFace}
+	mgr := NewManager(modelDir)
+	if err := mgr.RegisterProvider(provider); err != nil {
+		t.Fatalf("failed to register provider: %v", err)
+	}
+
+	modelID := "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4"
+	if err := mgr.RemoveModel(SourceHuggingFace, modelID); err != nil {
+		t.Fatalf("RemoveModel returned error: %v", err)
+	}
+	if provider.deletedID != modelID {
+		t.Fatalf("unexpected deleted model id, got %s want %s", provider.deletedID, modelID)
 	}
 }
