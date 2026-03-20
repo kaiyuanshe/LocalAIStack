@@ -71,9 +71,15 @@ make build
 # 健康检查
 ./build/las module check ollama
 
+# 例如安装训练/微调框架 Unsloth
+./build/las module install unsloth
+./build/las module check unsloth
+
 # 模块特定设置
 ./build/las module setting comfyui Comfy-Org_z_image_turbo
 ```
+
+当前仓库内已接入的模块包含推理运行时（如 `ollama`、`llama.cpp`、`vllm`）、模型工具（如 `hf`、`modelscope`）以及训练/微调框架 `unsloth`。`unsloth` 按官方默认 Linux 安装路径使用 `python3 -m pip install --user unsloth`，并要求 `Python < 3.14`。
 
 ### 3.3 安装后配置规划（module config-plan）
 

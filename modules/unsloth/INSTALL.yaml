@@ -1,0 +1,98 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: unsloth
+category: framework
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+
+install_modes:
+  - python
+
+tools_required:
+  - bash
+  - python3
+  - pip
+
+description:
+  purpose: Install the Unsloth Python framework
+  scope:
+    - install
+    - verify
+    - rollback
+    - uninstall
+    - purge
+  non_goals:
+    - auto-detect the optimal torch and CUDA wheel combination
+    - configure GPU drivers, CUDA toolkit, or Python virtual environments
+
+dependencies:
+  system:
+    - python3
+    - python3-pip
+
+preconditions:
+  - id: P10
+    intent: Must be Linux
+    tool: shell
+    command: uname -s
+    expected:
+      equals: Linux
+  - id: P20
+    intent: Python 3 available
+    tool: shell
+    command: command -v python3
+    expected:
+      exit_code: 0
+  - id: P30
+    intent: Pip available
+    tool: shell
+    command: python3 -m pip --version
+    expected:
+      exit_code: 0
+  - id: P40
+    intent: Python version must be 3.13 or lower
+    tool: shell
+    command: python3 -c "import sys; raise SystemExit(0 if sys.version_info < (3, 14) else 1)"
+    expected:
+      exit_code: 0
+
+decision_matrix:
+  default: python
+
+install:
+  python:
+    - id: S10
+      intent: Install Unsloth via the official pip package
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+configuration:
+  required: false
+  defaults: {}
+  templates: []
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/rollback.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: localhost
+    auth: n/a
+  privileges:
+    requires_sudo: false

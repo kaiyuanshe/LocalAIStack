@@ -102,8 +102,9 @@ LocalAIStack 不是单一应用。
 * Hugging Face Transformers
 * LangChain
 * LangGraph
+* Unsloth（面向本地 LLM 微调与强化学习训练）
 
-框架版本与已安装运行时和 CUDA 配置保持一致。
+框架版本与已安装运行时和 CUDA 配置保持一致。当前仓库已经提供 `unsloth` 模块，默认按官方 Linux `pip install unsloth` 路径安装，并要求 `Python < 3.14`。
 
 ---
 
