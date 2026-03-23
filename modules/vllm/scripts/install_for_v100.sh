@@ -18,6 +18,7 @@ TORCHAUDIO_VERSION="${VLLM_V100_TORCHAUDIO_VERSION:-2.9.1}"
 TRITON_VERSION="${VLLM_V100_TRITON_VERSION:-3.5.1}"
 TORCH_PACKAGES="${VLLM_V100_TORCH_PACKAGES:-torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio==${TORCHAUDIO_VERSION}}"
 TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
+BUILD_LOG_FILE="${VLLM_V100_BUILD_LOG_FILE:-}"
 
 ensure_wrapper() {
   local venv_bin="$1"
@@ -137,6 +138,19 @@ clean_v100_build_artifacts() {
   python -m pip uninstall -y vllm >/dev/null 2>&1 || true
 }
 
+enable_verbose_build_logging() {
+  if [[ -z "$BUILD_LOG_FILE" ]]; then
+    BUILD_LOG_FILE="$SOURCE_DIR/vllm_v100_build_$(date +%Y%m%d_%H%M%S).log"
+  fi
+
+  export BUILD_LOG_FILE
+  export CMAKE_VERBOSE_MAKEFILE="${CMAKE_VERBOSE_MAKEFILE:-ON}"
+  export VERBOSE="${VERBOSE:-1}"
+  export PIP_PROGRESS_BAR="${PIP_PROGRESS_BAR:-off}"
+
+  echo "Verbose build logging enabled. Log file: $BUILD_LOG_FILE" >&2
+}
+
 configure_cuda_toolchain() {
   local candidate=""
   local nvcc_bin=""
@@ -187,6 +201,7 @@ ensure_v100_runtime_stack
 
 export TORCH_CUDA_ARCH_LIST
 export VLLM_TARGET_DEVICE="${VLLM_TARGET_DEVICE:-cuda}"
+enable_verbose_build_logging
 echo "Using V100 build parallelism: MAX_JOBS=$MAX_JOBS, CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL, NVCC_THREADS=$NVCC_THREADS" >&2
 
 python use_existing_torch.py
@@ -194,7 +209,7 @@ uv pip install -r requirements/build.txt
 uv pip install -r requirements/cuda.txt
 uv pip install -r requirements/common.txt
 clean_v100_build_artifacts
-python -m pip install -e . --no-build-isolation
+python -m pip -v -v -v install -e . --no-build-isolation 2>&1 | tee "$BUILD_LOG_FILE"
 
 ensure_wrapper "$SOURCE_DIR/.venv/bin/vllm"
 

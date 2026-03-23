@@ -3,6 +3,7 @@
 '%s [%s]: ': '%s [%s]:'
 '%s kB': '%s 千字节'
 '%s; stderr: %s': '%s；标准错误输出（stderr）：%s'
+'- %s': '- %s'
 "- %s\t%s": "- %s\t%s"
 Allow vLLM to execute model custom code from repo (safetensors only): 允许 vLLM 从仓库中执行模型的自定义代码（仅限使用 safetensors）。
 Assistant API base URL: 助理 API 基础 URL
@@ -10,6 +11,7 @@ Assistant model: 辅助模型
 Assistant provider: 助理服务提供商（Assistant Service Provider）
 Assistant timeout in seconds: 助手的超时时间（以秒为单位）
 Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model: 自动调整 llama.cpp 的参数（--batch-size 和 --ubatch-size），以适应硬件配置和模型特性。
+'Available LLM providers:': 可用的大型语言模型（LLM）提供商：
 Base system info written to %s: 基础系统信息已写入到 %s 文件中。
 Batch size for llama.cpp (0 = auto): '`lama.cpp` 的批量处理大小（0 表示自动选择）'
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表示自动分配线程）：'
@@ -411,6 +413,7 @@ Run a local model: 运行一个本地模型。
 Run module-specific settings: 运行模块特定的设置
 Sampling temperature for llama.cpp: '`lama.cpp` 文件中的采样温度'
 Search for models: 搜索模型
+'Service status: %s': 服务状态：%s
 Show one failure event with suggested actions: 显示一个失败事件，并提供相应的建议措施。
 Show system information: 显示系统信息
 SiliconFlow API Key: SiliconFlow API 密钥
@@ -449,14 +452,17 @@ help for init: "关于 `init` 的帮助信息：  \n`init` 是一个用于初始
 help for install: 安装帮助
 help for list: 关于列表的帮助信息
 help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"
+help for repair: 需要帮助进行修复。
 help for rm: "关于 `rm` 命令的帮助信息：  \n`rm` 是一个用于删除文件的命令。它接受一个或多个文件名作为参数，并将这些文件从文件系统中删除。  \n\n**基本用法：**  \n`rm 文件名`  \n\n**注意：**  \n- 删除的文件将无法恢复。  \n- 如果要删除多个文件，可以使用文件名之间的空格或通配符（如 `*`）来指定多个文件。  \n- 如果要删除整个目录及其所有内容，可以使用 `-r` 选项（`rm -r 目录名`）。  \n\n**示例：**  \n- 删除单个文件：  \n  ```\n  rm example.txt\n  ```  \n- 删除多个文件：  \n  ```\n  rm example.txt example.log\n  ```  \n- 删除整个目录及其所有内容：  \n  ```\n  rm -r example_directory\n  ```  \n\n**更多信息：**  \n- 如果文件被其他程序占用（例如，正在被读取或写入），`rm` 命令可能无法成功删除该文件。在这种情况下，需要先关闭相关程序。  \n- 在某些系统中，可以使用 `rm -f` 选项强制删除文件，即使文件被其他程序占用。  \n\n**警告：**  \n使用 `rm` 命令时要小心，因为它会永久删除文件，因此请确保您确实要删除这些文件。"
 help for run: 关于如何运行的帮助
 help for search: 搜索帮助
 help for show: "关于“show”的帮助信息：  \n（由于“show”是一个非常通用的词汇，其具体含义和用法取决于上下文，因此这里只能提供一个基本的解释。）  \n“Show”通常用于表示“显示”或“展示”某物或信息。例如：  \n- “Please show me the document.”（请把文件给我看看。）  \n- “The program will show the results after processing.”（程序处理完成后会显示结果。）  \n如果需要更具体的帮助，请提供更多的上下文或信息！"
+help for status: 关于状态的帮助信息
 help for uninstall: 关于卸载的帮助：
 help for update: 关于更新的帮助信息
 'install step %s failed: %w': 安装步骤 %s 失败：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
+'module %q check failed: %v': 模块 %q 的检查失败：%v
 module %q does not provide a check script: 模块 %q 没有提供相应的检查脚本。
 module %q not found: 模块 %q 未找到。
 'unknown (%s): %s': 未知（%s）：%s
