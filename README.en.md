@@ -209,7 +209,12 @@ Roadmaps and milestones will be published as the project evolves.
 
 ## Quick Start
 
-Minimal workflow: clone the repository, build it, then use `./build/las`.
+Minimal workflow: clone the repository, build it, then use the built CLI.
+
+Command conventions:
+
+* Linux/macOS: `./build/las` and `./build/las-server`
+* Windows PowerShell: `.\build\las.exe` and `.\build\las-server.exe`
 
 ### 1. Clone the Repository
 
@@ -227,10 +232,12 @@ make build
 
 Build outputs:
 
-* `./build/las`: CLI
-* `./build/las-server`: server
+* Linux/macOS: `./build/las` (CLI), `./build/las-server` (server)
+* Windows PowerShell: `.\build\las.exe` (CLI), `.\build\las-server.exe` (server)
 
-### 3. Use `./build/las`
+### 3. Use the CLI
+
+Examples below use Linux/macOS syntax by default; in Windows PowerShell, replace `./build/las` with `.\build\las.exe`.
 
 Start with the overview:
 

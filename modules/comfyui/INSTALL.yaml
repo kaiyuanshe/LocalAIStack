@@ -7,6 +7,7 @@ category: application
 supported_platforms:
   - linux/amd64
   - linux/arm64
+  - windows/amd64
 
 install_modes:
   - native
@@ -17,7 +18,6 @@ rebuild_modes:
   - full
 
 tools_required:
-  - bash
   - git
   - python3
 
@@ -40,25 +40,7 @@ dependencies:
     - python3-venv
     - python3-pip
 
-preconditions:
-  - id: P10
-    intent: Must be Linux
-    tool: shell
-    command: uname -s
-    expected:
-      equals: Linux
-  - id: P20
-    intent: git available
-    tool: shell
-    command: command -v git
-    expected:
-      exit_code: 0
-  - id: P30
-    intent: python3 available
-    tool: shell
-    command: command -v python3
-    expected:
-      exit_code: 0
+preconditions: []
 
 decision_matrix:
   default: native

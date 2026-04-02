@@ -1,5 +1,7 @@
 # Ollama 模块安装技术方案（面向 `./build/las module install ollama`）
 
+命令说明：本文示例默认使用 Linux/macOS 写法 `./build/las`；在 Windows PowerShell 中请使用 `.\build\las.exe`。
+
 ## 目标
 
 当用户执行 `./build/las module install ollama` 时：

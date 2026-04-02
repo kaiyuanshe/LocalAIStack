@@ -7,9 +7,11 @@ category: runtime
 supported_platforms:
   - linux/amd64
   - linux/arm64
+  - windows/amd64
 
 install_modes:
   - native
+  - windows-native
 
 rebuild_modes:
   - none
@@ -39,19 +41,7 @@ dependencies:
     - curl
     - ca-certificates
 
-preconditions:
-  - id: P10
-    intent: Must be Linux
-    tool: shell
-    command: uname -s
-    expected:
-      equals: Linux
-  - id: P20
-    intent: systemd available
-    tool: shell
-    command: command -v systemctl
-    expected:
-      exit_code: 0
+preconditions: []
 
 decision_matrix:
   default: native
@@ -85,9 +75,9 @@ install:
     - id: S10
       intent: Download and install Ollama
       tool: shell
-      command: curl -fsSL https://ollama.com/install.sh | bash
+      command: bash scripts/install.sh
       expected:
-        bin: /usr/local/bin/ollama
+        bin: ollama
       idempotent: true
     - id: S20
       intent: Install systemd service unit
@@ -104,6 +94,21 @@ install:
       command: bash scripts/install_service.sh /tmp/ollama.service
       expected:
         service: active
+      idempotent: true
+  windows-native:
+    - id: S10
+      intent: Download and install Ollama for Windows
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+    - id: S20
+      intent: Verify Ollama CLI and API on Windows
+      tool: shell
+      command: bash scripts/verify.sh
+      expected:
+        exit_code: 0
       idempotent: true
 
 configuration:

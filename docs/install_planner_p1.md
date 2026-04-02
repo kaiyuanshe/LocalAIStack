@@ -1,5 +1,7 @@
 # Install Planner (P1) Design and Runbook
 
+Command note: examples use `./build/las` for Linux/macOS. In Windows PowerShell, use `.\build\las.exe`.
+
 ## 1. Scope
 
 This document describes the P1 install planner behavior used by `./build/las module install <module>`.

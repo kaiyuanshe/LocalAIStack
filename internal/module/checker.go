@@ -1,12 +1,9 @@
 package module
 
 import (
-	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
 )
@@ -43,22 +40,17 @@ func resolveModuleDir(name string) (string, error) {
 }
 
 func runModuleCheck(name, moduleDir string) error {
-	script_path := filepath.Join(moduleDir, "scripts")
-	verifyScript := filepath.Join(script_path, "verify.sh")
-	if _, err := os.Stat(verifyScript); err != nil {
+	verifyScript := platformCheckScriptPath(moduleDir)
+	if _, err := resolveModuleScriptPath(verifyScript); err != nil {
 		if os.IsNotExist(err) {
 			return i18n.Errorf("module %q does not provide a check script", name)
 		}
 		return i18n.Errorf("failed to read module check script for %q: %w", name, err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "bash", verifyScript)
-	output, err := cmd.CombinedOutput()
+	output, err := runModuleScript(verifyScript, moduleDir, nil, nil, false)
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := strings.TrimSpace(output)
 		if message == "" {
 			return i18n.Errorf("module %q check failed: %v", name, err)
 		}

@@ -1,5 +1,7 @@
 # Failure Handling (P4) Runbook
 
+Command note: examples use `./build/las` for Linux/macOS. In Windows PowerShell, use `.\build\las.exe`.
+
 ## 1. Scope
 
 P4 adds operational failure handling for install/config/run workflows:

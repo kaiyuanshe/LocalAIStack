@@ -11,6 +11,7 @@ import (
 func TestInstallRecordsFailureEvent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	err := Install("definitely-not-existing-module")
 	if err == nil {

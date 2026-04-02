@@ -214,6 +214,8 @@ GOOS=darwin GOARCH=arm64 make build
 GOOS=windows GOARCH=amd64 make build
 ```
 
+On Windows, `make build` for the current platform now emits `build/las.exe` and `build/las-server.exe`.
+
 ## Installation
 
 ### System-wide Installation

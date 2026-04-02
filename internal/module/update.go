@@ -1,10 +1,7 @@
 package module
 
 import (
-	"bytes"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -13,7 +10,8 @@ import (
 )
 
 type updateSpec struct {
-	Update uninstallSpec `yaml:"update"`
+	SupportedPlatforms []string      `yaml:"supported_platforms"`
+	Update             uninstallSpec `yaml:"update"`
 }
 
 // Update upgrades an installed module. If no dedicated update script is
@@ -41,32 +39,25 @@ func Update(name string) error {
 	if err := yaml.Unmarshal(raw, &spec); err != nil {
 		return i18n.Errorf("failed to parse install plan for module %q: %w", normalized, err)
 	}
+	if err := ensurePlatformSupported(spec.SupportedPlatforms); err != nil {
+		return err
+	}
 	script := strings.TrimSpace(spec.Update.Script)
 	if script == "" {
 		return Install(normalized)
 	}
 
-	scriptPath := script
-	if !filepath.IsAbs(scriptPath) {
-		scriptPath = filepath.Join(moduleDir, scriptPath)
-	}
+	scriptPath := absoluteModuleScriptPath(moduleDir, script)
 	if _, err := os.Stat(scriptPath); err != nil {
-		if os.IsNotExist(err) {
+		if _, resolveErr := resolveModuleScriptPath(scriptPath); os.IsNotExist(err) && resolveErr != nil {
 			return i18n.Errorf("update script not found for module %q", normalized)
 		}
 		return i18n.Errorf("failed to read update script for module %q: %w", normalized, err)
 	}
 
-	cmd := exec.Command("bash", scriptPath)
-	cmd.Dir = moduleDir
-	cmd.Env = commandEnv(nil)
-	var buffer bytes.Buffer
-	writer := io.MultiWriter(&buffer, os.Stdout)
-	cmd.Stdout = writer
-	cmd.Stderr = writer
-	err = cmd.Run()
+	output, err := runModuleScript(scriptPath, moduleDir, nil, nil, true)
 	if err != nil {
-		message := strings.TrimSpace(buffer.String())
+		message := strings.TrimSpace(output)
 		if message == "" {
 			return i18n.Errorf("module %q update failed: %w", normalized, err)
 		}

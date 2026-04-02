@@ -7,12 +7,12 @@ category: framework
 supported_platforms:
   - linux/amd64
   - linux/arm64
+  - windows/amd64
 
 install_modes:
   - python
 
 tools_required:
-  - bash
   - python3
   - pip
 
@@ -33,31 +33,7 @@ dependencies:
     - python3
     - python3-pip
 
-preconditions:
-  - id: P10
-    intent: Must be Linux
-    tool: shell
-    command: uname -s
-    expected:
-      equals: Linux
-  - id: P20
-    intent: Python 3 available
-    tool: shell
-    command: command -v python3
-    expected:
-      exit_code: 0
-  - id: P30
-    intent: Pip available
-    tool: shell
-    command: python3 -m pip --version
-    expected:
-      exit_code: 0
-  - id: P40
-    intent: Python version must be 3.13 or lower
-    tool: shell
-    command: python3 -c "import sys; raise SystemExit(0 if sys.version_info < (3, 14) else 1)"
-    expected:
-      exit_code: 0
+preconditions: []
 
 decision_matrix:
   default: python

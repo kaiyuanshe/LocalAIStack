@@ -2,7 +2,6 @@ package module
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -11,7 +10,8 @@ import (
 )
 
 type installSpec struct {
-	Uninstall uninstallSpec `yaml:"uninstall"`
+	SupportedPlatforms []string      `yaml:"supported_platforms"`
+	Uninstall          uninstallSpec `yaml:"uninstall"`
 }
 
 type uninstallSpec struct {
@@ -42,27 +42,25 @@ func Uninstall(name string) error {
 	if err := yaml.Unmarshal(raw, &spec); err != nil {
 		return i18n.Errorf("failed to parse install plan for module %q: %w", normalized, err)
 	}
+	if err := ensurePlatformSupported(spec.SupportedPlatforms); err != nil {
+		return err
+	}
 	script := strings.TrimSpace(spec.Uninstall.Script)
 	if script == "" {
 		return i18n.Errorf("module %q does not define an uninstall script", normalized)
 	}
 
-	scriptPath := script
-	if !filepath.IsAbs(scriptPath) {
-		scriptPath = filepath.Join(moduleDir, scriptPath)
-	}
+	scriptPath := absoluteModuleScriptPath(moduleDir, script)
 	if _, err := os.Stat(scriptPath); err != nil {
-		if os.IsNotExist(err) {
+		if _, resolveErr := resolveModuleScriptPath(scriptPath); os.IsNotExist(err) && resolveErr != nil {
 			return i18n.Errorf("uninstall script not found for module %q", normalized)
 		}
 		return i18n.Errorf("failed to read uninstall script for module %q: %w", normalized, err)
 	}
 
-	cmd := exec.Command("bash", scriptPath)
-	cmd.Dir = moduleDir
-	output, err := cmd.CombinedOutput()
+	output, err := runModuleScript(scriptPath, moduleDir, nil, nil, false)
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := strings.TrimSpace(output)
 		if message == "" {
 			return i18n.Errorf("module %q uninstall failed: %w", normalized, err)
 		}

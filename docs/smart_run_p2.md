@@ -1,5 +1,7 @@
 # Smart Run Model (P2) Design and Runbook
 
+Command note: examples use `./build/las` for Linux/macOS. In Windows PowerShell, use `.\build\las.exe`.
+
 ## 1. Scope
 
 This document describes P2 smart runtime tuning for:

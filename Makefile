@@ -1,9 +1,11 @@
 # Makefile for LocalAIStack
 
 # Variables
-BINARY_NAME=las
-SERVER_BINARY=$(BINARY_NAME)-server
-CLI_BINARY=$(BINARY_NAME)
+BASE_BINARY_NAME=las
+GOOS_CURRENT=$(if $(GOOS),$(GOOS),$(shell go env GOOS))
+EXE_EXT=$(if $(filter windows,$(GOOS_CURRENT)),.exe,)
+SERVER_BINARY=$(BASE_BINARY_NAME)-server$(EXE_EXT)
+CLI_BINARY=$(BASE_BINARY_NAME)$(EXE_EXT)
 BUILD_DIR=build
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
 LDFLAGS=-ldflags "-X github.com/zhuangbiaowei/LocalAIStack/internal/config.Version=$(VERSION) -s -w"
@@ -82,11 +84,11 @@ build-all:
 	@echo "Building binaries for all platforms..."
 	@mkdir -p $(BUILD_DIR)
 	@echo "Building for linux/amd64..."
-	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_AMD64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(SERVER_BINARY)-linux-amd64 ./cmd/server
-	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_AMD64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_BINARY)-linux-amd64 ./cmd/cli
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_AMD64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BASE_BINARY_NAME)-server-linux-amd64 ./cmd/server
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_AMD64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BASE_BINARY_NAME)-linux-amd64 ./cmd/cli
 	@echo "Building for linux/arm64..."
-	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_ARM64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(SERVER_BINARY)-linux-arm64 ./cmd/server
-	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_ARM64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_BINARY)-linux-arm64 ./cmd/cli
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_ARM64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BASE_BINARY_NAME)-server-linux-arm64 ./cmd/server
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_ARM64) $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BASE_BINARY_NAME)-linux-arm64 ./cmd/cli
 	@echo "Done"
 
 .PHONY: test

@@ -17,6 +17,7 @@ dependencies:
   system:
     - curl
     - ca-certificates
+    - powershell
 
 runtime:
   modes:

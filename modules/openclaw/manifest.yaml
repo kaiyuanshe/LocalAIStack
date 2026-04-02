@@ -12,7 +12,6 @@ hardware:
 
 dependencies:
   system:
-    - bash
     - curl
     - ca-certificates
     - python3

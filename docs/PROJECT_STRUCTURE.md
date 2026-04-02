@@ -182,6 +182,8 @@ GOOS=darwin GOARCH=arm64 make build
 GOOS=windows GOARCH=amd64 make build
 ```
 
+On Windows, the current-platform build output names are `build/las.exe` and `build/las-server.exe`.
+
 ## Module Organization
 
 ### Internal vs Public

@@ -2,8 +2,6 @@ package module
 
 import (
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/zhuangbiaowei/LocalAIStack/internal/i18n"
@@ -24,21 +22,17 @@ func Setting(name string, args []string) error {
 		return err
 	}
 
-	scriptPath := filepath.Join(moduleDir, "scripts", "setting.sh")
-	if _, err := os.Stat(scriptPath); err != nil {
+	scriptPath := platformSettingScriptPath(moduleDir)
+	if _, err := resolveModuleScriptPath(scriptPath); err != nil {
 		if os.IsNotExist(err) {
 			return i18n.Errorf("setting script not found for module %q", normalized)
 		}
 		return i18n.Errorf("failed to read setting script for module %q: %w", normalized, err)
 	}
 
-	cmdArgs := append([]string{scriptPath}, args...)
-	cmd := exec.Command("bash", cmdArgs...)
-	cmd.Dir = moduleDir
-	cmd.Env = commandEnv(nil)
-	output, err := cmd.CombinedOutput()
+	output, err := runModuleScript(scriptPath, moduleDir, args, nil, false)
 	if err != nil {
-		message := normalizedOutput(string(output))
+		message := normalizedOutput(output)
 		if message == "" {
 			return i18n.Errorf("module %q setting failed: %w", normalized, err)
 		}

@@ -1,15 +1,15 @@
 ---
 name: localaistack-cli
-description: Use this skill when a task involves inspecting, explaining, or operating the LocalAIStack CLI at ./build/las (command name localaistack), including model, module, provider, service, system, init, and failure subcommands.
+description: Use this skill when a task involves inspecting, explaining, or operating the LocalAIStack CLI at ./build/las or .\build\las.exe (command name localaistack), including model, module, provider, service, system, init, and failure subcommands.
 ---
 
 # LocalAIStack CLI
 
-Use this skill when the user asks to operate `./build/las`, explain its flags, debug a failing LocalAIStack CLI workflow, or map a task onto `localaistack` subcommands.
+Use this skill when the user asks to operate `./build/las` or `.\build\las.exe`, explain its flags, debug a failing LocalAIStack CLI workflow, or map a task onto `localaistack` subcommands.
 
 ## Command identity
 
-- The built binary is `./build/las`.
+- The built binary is `./build/las` on Linux/macOS and `.\build\las.exe` on Windows PowerShell.
 - Its Cobra command name is `localaistack`.
 - Global flags:
   - `--config <path>` overrides the config file. Default path is `$HOME/.localaistack/config.yaml`.
@@ -18,7 +18,7 @@ Use this skill when the user asks to operate `./build/las`, explain its flags, d
 
 ## Safe operating defaults
 
-- Prefer `./build/las <command> --help` before guessing flags.
+- Prefer `./build/las <command> --help` on Linux/macOS, or `.\build\las.exe <command> --help` on Windows, before guessing flags.
 - Prefer read-only commands first: `model list`, `model search`, `module list`, `provider list`, `failure list`.
 - For `model run`, use `--dry-run` first unless the user explicitly wants the process started.
 - Do not use `model rm --force`, `module uninstall`, or `module purge` unless the user explicitly asked for deletion.

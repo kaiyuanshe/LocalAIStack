@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/zhuangbiaowei/LocalAIStack/internal/config"
@@ -100,20 +99,40 @@ func CollectBaseInfoWithRaw(ctx context.Context) (BaseInfo, []RawCommandOutput) 
 }
 
 func kernelInfo(ctx context.Context) string {
-	stdout, stderr, err := runCommand(ctx, "uname", "-a")
-	if err != nil {
-		return formatUnknown("uname", err, stderr)
+	switch runtime.GOOS {
+	case "windows":
+		stdout, stderr, err := runPowerShell(ctx, `$os = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name ProductName,CurrentBuild,DisplayVersion; [string]::Format('{0} {1} build {2}', $os.ProductName, $os.DisplayVersion, $os.CurrentBuild)`)
+		if err != nil {
+			return formatUnknown("powershell", err, stderr)
+		}
+		return strings.TrimSpace(stdout)
+	default:
+		stdout, stderr, err := runCommand(ctx, "uname", "-a")
+		if err != nil {
+			return formatUnknown("uname", err, stderr)
+		}
+		return strings.TrimSpace(stdout)
 	}
-	return strings.TrimSpace(stdout)
 }
 
 func kernelInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
-	stdout, stderr, err := runCommand(ctx, "uname", "-a")
-	rawOutputs = append(rawOutputs, newRawOutput("uname -a", stdout, stderr, err))
-	if err != nil {
-		return formatUnknown("uname", err, stderr), rawOutputs
+	switch runtime.GOOS {
+	case "windows":
+		command := `$os = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name ProductName,CurrentBuild,DisplayVersion; [string]::Format('{0} {1} build {2}', $os.ProductName, $os.DisplayVersion, $os.CurrentBuild)`
+		stdout, stderr, err := runPowerShell(ctx, command)
+		rawOutputs = append(rawOutputs, newRawOutput(formatPowerShellCommand(command), stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("powershell", err, stderr), rawOutputs
+		}
+		return strings.TrimSpace(stdout), rawOutputs
+	default:
+		stdout, stderr, err := runCommand(ctx, "uname", "-a")
+		rawOutputs = append(rawOutputs, newRawOutput("uname -a", stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("uname", err, stderr), rawOutputs
+		}
+		return strings.TrimSpace(stdout), rawOutputs
 	}
-	return strings.TrimSpace(stdout), rawOutputs
 }
 
 func cpuModel(ctx context.Context) string {
@@ -145,6 +164,16 @@ func cpuModel(ctx context.Context) string {
 			return formatUnknown("sysctl", err, stderr)
 		}
 		return strings.TrimSpace(stdout)
+	case "windows":
+		stdout, stderr, err := runCommand(ctx, "reg", "query", `HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0`, "/v", "ProcessorNameString")
+		if err != nil {
+			return formatUnknown("reg query", err, stderr)
+		}
+		lines := regQueryValues(stdout)
+		if len(lines) == 0 {
+			return i18n.T("unknown: cpu model not found")
+		}
+		return strings.Join(lines, "; ")
 	default:
 		return i18n.T("unknown: unsupported OS")
 	}
@@ -179,6 +208,17 @@ func cpuModelWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string
 			return formatUnknown("sysctl", err, stderr), rawOutputs
 		}
 		return strings.TrimSpace(stdout), rawOutputs
+	case "windows":
+		stdout, stderr, err := runCommand(ctx, "reg", "query", `HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0`, "/v", "ProcessorNameString")
+		rawOutputs = append(rawOutputs, newRawOutput(`reg query HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0 /v ProcessorNameString`, stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("reg query", err, stderr), rawOutputs
+		}
+		lines := regQueryValues(stdout)
+		if len(lines) == 0 {
+			return i18n.T("unknown: cpu model not found"), rawOutputs
+		}
+		return strings.Join(lines, "; "), rawOutputs
 	default:
 		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
@@ -214,6 +254,16 @@ func memoryTotal(ctx context.Context) string {
 			return formatUnknown("sysctl", err, stderr)
 		}
 		return i18n.T("%s bytes", strings.TrimSpace(stdout))
+	case "windows":
+		stdout, stderr, err := runPowerShell(ctx, `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.ComputerInfo]::new().TotalPhysicalMemory`)
+		if err != nil {
+			return formatUnknown("powershell", err, stderr)
+		}
+		value := strings.TrimSpace(stdout)
+		if value == "" {
+			return i18n.T("unknown: memory total not found")
+		}
+		return i18n.T("%s bytes", value)
 	default:
 		return i18n.T("unknown: unsupported OS")
 	}
@@ -249,6 +299,18 @@ func memoryTotalWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (str
 			return formatUnknown("sysctl", err, stderr), rawOutputs
 		}
 		return i18n.T("%s bytes", strings.TrimSpace(stdout)), rawOutputs
+	case "windows":
+		command := `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.ComputerInfo]::new().TotalPhysicalMemory`
+		stdout, stderr, err := runPowerShell(ctx, command)
+		rawOutputs = append(rawOutputs, newRawOutput(formatPowerShellCommand(command), stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("powershell", err, stderr), rawOutputs
+		}
+		value := strings.TrimSpace(stdout)
+		if value == "" {
+			return i18n.T("unknown: memory total not found"), rawOutputs
+		}
+		return i18n.T("%s bytes", value), rawOutputs
 	default:
 		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
@@ -280,6 +342,16 @@ func gpuInfo(ctx context.Context) string {
 			return i18n.T("unknown: no GPU entries")
 		}
 		return strings.Join(matches, "; ")
+	case "windows":
+		stdout, stderr, err := runCommand(ctx, "reg", "query", `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}`, "/s", "/v", "DriverDesc")
+		if err != nil {
+			return formatUnknown("reg query", err, stderr)
+		}
+		lines := regQueryValues(stdout)
+		if len(lines) == 0 {
+			return i18n.T("unknown: no GPU entries")
+		}
+		return strings.Join(lines, "; ")
 	default:
 		return i18n.T("unknown: unsupported OS")
 	}
@@ -313,19 +385,20 @@ func gpuInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string,
 			return i18n.T("unknown: no GPU entries"), rawOutputs
 		}
 		return strings.Join(matches, "; "), rawOutputs
+	case "windows":
+		stdout, stderr, err := runCommand(ctx, "reg", "query", `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}`, "/s", "/v", "DriverDesc")
+		rawOutputs = append(rawOutputs, newRawOutput(`reg query HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318} /s /v DriverDesc`, stdout, stderr, err))
+		if err != nil {
+			return formatUnknown("reg query", err, stderr), rawOutputs
+		}
+		lines := regQueryValues(stdout)
+		if len(lines) == 0 {
+			return i18n.T("unknown: no GPU entries"), rawOutputs
+		}
+		return strings.Join(lines, "; "), rawOutputs
 	default:
 		return i18n.T("unknown: unsupported OS"), rawOutputs
 	}
-}
-
-func diskInfo() (string, string) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs("/", &stat); err != nil {
-		return formatUnknown("statfs", err, ""), formatUnknown("statfs", err, "")
-	}
-	total := stat.Blocks * uint64(stat.Bsize)
-	available := stat.Bavail * uint64(stat.Bsize)
-	return formatBytes(total), formatBytes(available)
 }
 
 func hostname() string {
@@ -423,6 +496,10 @@ func diskInfoRaw(ctx context.Context) []RawCommandOutput {
 	case "linux", "darwin":
 		stdout, stderr, err := runCommand(ctx, "df", "-h", "/")
 		return []RawCommandOutput{newRawOutput("df -h /", stdout, stderr, err)}
+	case "windows":
+		command := `Get-Item 'C:\' | Select-Object FullName,@{Name='Drive';Expression={$_.PSDrive.Name}},@{Name='Free';Expression={$_.PSDrive.Free}} | Format-List`
+		stdout, stderr, err := runPowerShell(ctx, command)
+		return []RawCommandOutput{newRawOutput(formatPowerShellCommand(command), stdout, stderr, err)}
 	default:
 		return []RawCommandOutput{{
 			Command: "df -h /",
@@ -439,6 +516,9 @@ func networkInfoRaw(ctx context.Context) []RawCommandOutput {
 	case "darwin":
 		stdout, stderr, err := runCommand(ctx, "ifconfig")
 		return []RawCommandOutput{newRawOutput("ifconfig", stdout, stderr, err)}
+	case "windows":
+		stdout, stderr, err := runCommand(ctx, "ipconfig")
+		return []RawCommandOutput{newRawOutput("ipconfig", stdout, stderr, err)}
 	default:
 		return []RawCommandOutput{{
 			Command: i18n.T("network info"),
@@ -460,6 +540,14 @@ func runCommand(ctx context.Context, name string, args ...string) (string, strin
 
 	err := cmd.Run()
 	return stdout.String(), stderr.String(), err
+}
+
+func runPowerShell(ctx context.Context, command string) (string, string, error) {
+	return runCommand(ctx, "powershell.exe", "-NoProfile", "-Command", command)
+}
+
+func formatPowerShellCommand(command string) string {
+	return fmt.Sprintf("powershell.exe -NoProfile -Command %s", command)
 }
 
 func formatUnknown(source string, err error, stderr string) string {
@@ -514,4 +602,43 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func nonEmptyLines(raw string) []string {
+	seen := make(map[string]struct{})
+	lines := make([]string, 0)
+	for _, line := range strings.Split(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		lines = append(lines, trimmed)
+	}
+	return lines
+}
+
+func regQueryValues(raw string) []string {
+	values := make([]string, 0)
+	for _, line := range strings.Split(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "HKEY_") || strings.HasPrefix(trimmed, "End of search:") {
+			continue
+		}
+
+		fields := strings.Fields(trimmed)
+		if len(fields) < 3 {
+			continue
+		}
+
+		value := strings.Join(fields[2:], " ")
+		if value == "" {
+			continue
+		}
+		values = append(values, value)
+	}
+	return nonEmptyLines(strings.Join(values, "\n"))
 }

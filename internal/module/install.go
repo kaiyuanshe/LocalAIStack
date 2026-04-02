@@ -1,15 +1,14 @@
 package module
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -23,11 +22,12 @@ import (
 )
 
 type moduleInstallSpec struct {
-	InstallModes   []string                 `yaml:"install_modes"`
-	DecisionMatrix installDecisionMatrix    `yaml:"decision_matrix"`
-	Preconditions  []installPrecondition    `yaml:"preconditions"`
-	Install        map[string][]installStep `yaml:"install"`
-	Configuration  installConfiguration     `yaml:"configuration"`
+	SupportedPlatforms []string                 `yaml:"supported_platforms"`
+	InstallModes       []string                 `yaml:"install_modes"`
+	DecisionMatrix     installDecisionMatrix    `yaml:"decision_matrix"`
+	Preconditions      []installPrecondition    `yaml:"preconditions"`
+	Install            map[string][]installStep `yaml:"install"`
+	Configuration      installConfiguration     `yaml:"configuration"`
 }
 
 type installDecisionMatrix struct {
@@ -166,6 +166,9 @@ func Install(name string) (retErr error) {
 	if err := yaml.Unmarshal(raw, &spec); err != nil {
 		return i18n.Errorf("failed to parse install plan for module %q: %w", normalized, err)
 	}
+	if err := ensurePlatformSupported(spec.SupportedPlatforms); err != nil {
+		return err
+	}
 
 	if err := runPreconditions(spec.Preconditions, moduleDir); err != nil {
 		return err
@@ -283,6 +286,13 @@ func selectInstallMode(spec moduleInstallSpec) string {
 func selectInstallModeForSystem(moduleName string, spec moduleInstallSpec) (string, map[string]string) {
 	mode := selectInstallMode(spec)
 	env := map[string]string{}
+
+	if moduleName == "ollama" && runtime.GOOS == "windows" {
+		if _, ok := spec.Install["windows-native"]; ok {
+			return "windows-native", env
+		}
+		return mode, env
+	}
 
 	if moduleName != "llama.cpp" {
 		return mode, env
@@ -787,50 +797,6 @@ func runInstallStep(moduleName, moduleDir string, step installStep, vars map[str
 		return i18n.Errorf("install step %s failed: %w", step.ID, err)
 	}
 	return nil
-}
-
-func runShellCommand(command, moduleDir string, stream bool) (string, int, error) {
-	return runShellCommandWithEnv(command, moduleDir, stream, nil)
-}
-
-func runShellCommandWithEnv(command, moduleDir string, stream bool, env map[string]string) (string, int, error) {
-	cmd := exec.Command("bash", "-c", command)
-	cmd.Dir = moduleDir
-	cmd.Env = commandEnv(env)
-	if stream {
-		var buffer bytes.Buffer
-		writer := io.MultiWriter(&buffer, os.Stdout)
-		cmd.Stdout = writer
-		cmd.Stderr = writer
-		err := cmd.Run()
-		exitCode := 0
-		if cmd.ProcessState != nil {
-			exitCode = cmd.ProcessState.ExitCode()
-		}
-		output := buffer.String()
-		if err != nil {
-			message := normalizedOutput(output)
-			if message == "" {
-				return "", exitCode, err
-			}
-			return message, exitCode, i18n.Errorf("%s", message)
-		}
-		return output, exitCode, nil
-	}
-
-	output, err := cmd.CombinedOutput()
-	exitCode := 0
-	if cmd.ProcessState != nil {
-		exitCode = cmd.ProcessState.ExitCode()
-	}
-	if err != nil {
-		message := normalizedOutput(string(output))
-		if message == "" {
-			return "", exitCode, err
-		}
-		return message, exitCode, i18n.Errorf("%s", message)
-	}
-	return string(output), exitCode, nil
 }
 
 func commandEnv(extra map[string]string) []string {
