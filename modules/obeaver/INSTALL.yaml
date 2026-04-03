@@ -1,0 +1,105 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: obeaver
+category: tools
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+  - windows/amd64
+  - darwin/amd64
+  - darwin/arm64
+
+install_modes:
+  - native
+
+rebuild_modes:
+  - none
+  - soft
+  - full
+
+tools_required:
+  - git
+  - python3
+
+description:
+  purpose: Install the Microsoft oBeaver CLI from source into a LocalAIStack-managed virtual environment
+  scope:
+    - clone
+    - install
+    - verify
+    - uninstall
+    - purge
+
+dependencies:
+  system:
+    - git
+    - python3
+    - python3-pip
+
+preconditions: []
+
+decision_matrix:
+  default: native
+  rules: []
+
+environment_rebuild:
+  detect:
+    - id: R10
+      intent: Detect existing oBeaver launcher
+      tool: shell
+      command: bash scripts/verify.sh
+      expected:
+        exit_code: 0
+  soft_cleanup:
+    - id: C10
+      intent: Remove the oBeaver virtual environment and launcher
+      tool: shell
+      command: bash scripts/uninstall.sh
+      expected:
+        exit_code: 0
+  full_cleanup:
+    - id: C20
+      intent: Remove the oBeaver virtual environment, launcher, and cloned source tree
+      tool: shell
+      command: bash scripts/purge.sh
+      expected:
+        exit_code: 0
+
+install:
+  native:
+    - id: S10
+      intent: Clone the oBeaver repository and install it in an isolated virtual environment
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+    - id: S20
+      intent: Verify the installed oBeaver CLI
+      tool: shell
+      command: bash scripts/verify.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: n/a
+    auth: n/a
+  privileges:
+    requires_sudo: false

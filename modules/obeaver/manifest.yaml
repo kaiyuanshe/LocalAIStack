@@ -1,0 +1,28 @@
+name: obeaver
+category: tool
+version: 0.1.0
+description: Local wrapper module for the Microsoft oBeaver CLI installed from source
+license: Apache-2.0
+
+hardware:
+  cpu:
+    cores_min: 2
+  memory:
+    ram_min: 4GB
+
+dependencies:
+  system:
+    - git
+    - python3
+    - python3-pip
+
+runtime:
+  modes:
+    - native
+  preferred: native
+
+interfaces:
+  provides:
+    - openai_compatible_local_llm_api
+    - local_embeddings_api
+    - local_inference_dashboard
