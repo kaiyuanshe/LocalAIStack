@@ -303,6 +303,8 @@ make build
 
 当前仓库内已接入的模块包含推理运行时（如 `ollama`、`llama.cpp`、`vllm`）、模型工具（如 `hf`、`modelscope`）以及训练/微调框架 `unsloth`。
 
+其中 `obeaver` 模块已支持通过 `./build/las module install obeaver` 安装上游 [microsoft/obeaver](https://github.com/microsoft/obeaver)。该模块会在 Windows 上自动检查并安装 Foundry Local（`winget install Microsoft.FoundryLocal`），在 macOS 上自动检查并安装 Foundry Local（`brew install microsoft/foundrylocal/foundrylocal`）；Linux 不支持 Foundry Local，应使用 `obeaver run --engine ort <本地 ONNX 模型目录>`。
+
 #### 3.3 安装后配置规划（`module config-plan`）
 
 ```bash

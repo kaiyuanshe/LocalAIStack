@@ -301,6 +301,8 @@ Effects:
 
 Modules already integrated in this repository include inference runtimes such as `ollama`, `llama.cpp`, and `vllm`, model tools such as `hf` and `modelscope`, and the `unsloth` training / fine-tuning framework.
 
+The repository also now includes an `obeaver` module, installable with `./build/las module install obeaver`, which provisions the upstream [microsoft/obeaver](https://github.com/microsoft/obeaver) project. On Windows it automatically checks for and installs Foundry Local with `winget install Microsoft.FoundryLocal`; on macOS it automatically checks for and installs Foundry Local with `brew install microsoft/foundrylocal/foundrylocal`. Linux does not support Foundry Local, so use `obeaver run --engine ort <local-onnx-model-dir>` there.
+
 #### 3.3 Post-install Config Planning (`module config-plan`)
 
 ```bash
