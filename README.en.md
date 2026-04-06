@@ -101,6 +101,7 @@ Curated open-source AI applications deployed as managed services:
 * RAGFlow
 * ComfyUI
 * open-deep-research
+* Unsloth Studio
 * Extendable through manifests
 
 Each application includes:
@@ -295,11 +296,15 @@ Effects:
 ./build/las module install unsloth
 ./build/las module check unsloth
 
+# Install the Unsloth Studio web UI
+./build/las module install unsloth-studio
+./build/las module check unsloth-studio
+
 # Module-specific settings
 ./build/las module setting comfyui Comfy-Org_z_image_turbo
 ```
 
-Modules already integrated in this repository include inference runtimes such as `ollama`, `llama.cpp`, and `vllm`, model tools such as `hf` and `modelscope`, and the `unsloth` training / fine-tuning framework.
+Modules already integrated in this repository include inference runtimes such as `ollama`, `llama.cpp`, and `vllm`, model tools such as `hf` and `modelscope`, the `unsloth` training / fine-tuning framework, and the `unsloth-studio` local web UI application.
 
 The repository also now includes an `obeaver` module, installable with `./build/las module install obeaver`, which provisions the upstream [microsoft/obeaver](https://github.com/microsoft/obeaver) project. On Windows it automatically checks for and installs Foundry Local with `winget install Microsoft.FoundryLocal`; on macOS it automatically checks for and installs Foundry Local with `brew install microsoft/foundrylocal/foundrylocal`. Linux does not support Foundry Local, so use `obeaver run --engine ort <local-onnx-model-dir>` there.
 

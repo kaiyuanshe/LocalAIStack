@@ -1,0 +1,86 @@
+apiVersion: las.installspec/v0.1.2
+kind: InstallPlan
+
+id: unsloth-studio
+category: application
+
+supported_platforms:
+  - linux/amd64
+  - linux/arm64
+  - darwin/amd64
+  - darwin/arm64
+  - windows/amd64
+
+install_modes:
+  - native
+
+tools_required:
+  - curl
+  - git
+  - python3
+
+description:
+  purpose: Install Unsloth Studio via the official Unsloth installer
+  scope:
+    - install
+    - verify
+    - update
+    - rollback
+    - uninstall
+    - purge
+  non_goals:
+    - install GPU drivers or CUDA toolkits
+    - manage Hugging Face model caches
+    - auto-launch the Studio server after installation
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - git
+    - python3
+
+preconditions: []
+
+decision_matrix:
+  default: native
+
+install:
+  native:
+    - id: S10
+      intent: Install or update Unsloth Studio via the official installer
+      tool: shell
+      command: bash scripts/install.sh
+      expected:
+        exit_code: 0
+      idempotent: true
+
+configuration:
+  required: false
+  defaults:
+    host: 0.0.0.0
+    port: 8888
+  templates: []
+
+verification:
+  script: scripts/verify.sh
+
+rollback:
+  script: scripts/uninstall.sh
+
+update:
+  script: scripts/update.sh
+
+uninstall:
+  script: scripts/uninstall.sh
+
+purge:
+  script: scripts/purge.sh
+  destructive: true
+
+security:
+  network:
+    bind: localhost:8888
+    auth: password-on-first-run
+  privileges:
+    requires_sudo: false

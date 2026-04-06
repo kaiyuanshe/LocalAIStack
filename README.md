@@ -104,6 +104,7 @@ LocalAIStack 不是单一应用，而是一个由多层协同组成的堆叠式�
 * RAGFlow
 * ComfyUI
 * open-deep-research
+* Unsloth Studio
 * 可通过清单扩展
 
 每个应用包含：
@@ -298,11 +299,15 @@ make build
 ./build/las module install unsloth
 ./build/las module check unsloth
 
+# 安装 Unsloth Studio Web UI
+./build/las module install unsloth-studio
+./build/las module check unsloth-studio
+
 # 模块特定设置
 ./build/las module setting comfyui Comfy-Org_z_image_turbo
 ```
 
-当前仓库内已接入的模块包含推理运行时（如 `ollama`、`llama.cpp`、`vllm`）、模型工具（如 `hf`、`modelscope`）以及训练/微调框架 `unsloth`。
+当前仓库内已接入的模块包含推理运行时（如 `ollama`、`llama.cpp`、`vllm`）、模型工具（如 `hf`、`modelscope`）、训练/微调框架 `unsloth`，以及本地 Web UI 应用 `unsloth-studio`。
 
 其中 `obeaver` 模块已支持通过 `./build/las module install obeaver` 安装上游 [microsoft/obeaver](https://github.com/microsoft/obeaver)。该模块会在 Windows 上自动检查并安装 Foundry Local（`winget install Microsoft.FoundryLocal`），在 macOS 上自动检查并安装 Foundry Local（`brew install microsoft/foundrylocal/foundrylocal`）；Linux 不支持 Foundry Local，应使用 `obeaver run --engine ort <本地 ONNX 模型目录>`。
 

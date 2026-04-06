@@ -1,0 +1,28 @@
+name: unsloth-studio
+category: application
+version: 0.1.0
+description: Unsloth Studio local web UI for chat, data recipes, and fine-tuning workflows
+license: LGPL-3.0
+
+hardware:
+  cpu:
+    cores_min: 4
+  memory:
+    ram_min: 8GB
+
+dependencies:
+  system:
+    - curl
+    - ca-certificates
+    - git
+    - python3
+
+runtime:
+  modes:
+    - native
+  preferred: native
+
+interfaces:
+  provides:
+    - web_ui
+    - llm_finetuning_application
