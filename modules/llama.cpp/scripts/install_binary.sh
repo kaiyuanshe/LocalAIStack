@@ -123,3 +123,28 @@ if [[ ! -x /usr/local/bin/llama-cli ]]; then
   echo "llama-cli was not installed. Check extracted archive contents." >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Post-install summary
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== llama.cpp installation complete ==="
+echo ""
+echo "Installed binaries:"
+echo "  llama-cli      : /usr/local/bin/llama-cli"
+echo "  llama-server   : /usr/local/bin/llama-server"
+echo ""
+# Quick check: prebuilt binaries from official releases usually include the
+# embedded Web UI.  We probe the binary for an HTML signature to give a rough
+# indication.
+if strings /usr/local/bin/llama-server 2>/dev/null | grep -qF 'text/html'; then
+  echo "Embedded Web UI : detected in llama-server binary"
+else
+  echo "Embedded Web UI : not detected — the binary may have been built without it"
+fi
+echo ""
+echo "Start a local API + Web UI server (no model specified yet):"
+echo "  llama-server --host 127.0.0.1 --port 8080 -m /path/to/model.gguf"
+echo ""
+echo "Once running, open http://127.0.0.1:8080 in your browser."
+echo ""

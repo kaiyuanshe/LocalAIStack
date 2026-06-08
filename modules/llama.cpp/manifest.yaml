@@ -24,6 +24,8 @@ dependencies:
     - gcc
     - g++
     - python3
+    - nodejs
+    - npm
 
 runtime:
   modes:

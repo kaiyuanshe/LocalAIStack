@@ -253,14 +253,32 @@ func ParseModelID(input string) (ModelSource, string, error) {
 	if strings.HasPrefix(inputLower, "ollama:") {
 		return SourceOllama, input[7:], nil
 	}
+	if strings.HasPrefix(inputLower, "ollama/") {
+		return SourceOllama, input[7:], nil
+	}
 	if strings.HasPrefix(inputLower, "huggingface:") {
+		return SourceHuggingFace, input[12:], nil
+	}
+	if strings.HasPrefix(inputLower, "huggingface/") {
 		return SourceHuggingFace, input[12:], nil
 	}
 	if strings.HasPrefix(inputLower, "hf:") {
 		return SourceHuggingFace, input[3:], nil
 	}
+	if strings.HasPrefix(inputLower, "hf/") {
+		return SourceHuggingFace, input[3:], nil
+	}
 	if strings.HasPrefix(inputLower, "modelscope:") {
 		return SourceModelScope, input[11:], nil
+	}
+	if strings.HasPrefix(inputLower, "modelscope/") {
+		return SourceModelScope, input[11:], nil
+	}
+	if strings.HasPrefix(inputLower, "ms:") {
+		return SourceModelScope, input[3:], nil
+	}
+	if strings.HasPrefix(inputLower, "ms/") {
+		return SourceModelScope, input[3:], nil
 	}
 
 	if strings.Contains(input, ":") && !strings.Contains(input, "/") {

@@ -260,7 +260,7 @@ make build
   --api-key "sk-xxxx" \
   --language zh-CN \
   --assistant-provider siliconflow \
-  --assistant-model deepseek-ai/DeepSeek-V3.2 \
+  --assistant-model deepseek-ai/DeepSeek-V4-Flash \
   --translation-provider siliconflow \
   --translation-model tencent/Hunyuan-MT-7B
 
@@ -277,7 +277,7 @@ make build
 * 生成配置文件：`$HOME/.localaistack/config.yaml`
 * 默认双模型职责：
   * 翻译模型：`tencent/Hunyuan-MT-7B`
-  * 智能助手模型：`deepseek-ai/DeepSeek-V3.2`（可修改）
+  * 智能助手模型：`deepseek-ai/DeepSeek-V4-Flash`（可修改）
 * 生成硬件基础信息 `base_info.json`，用于 install planner、config planner、smart-run
 
 #### 3.2 模块管理（`module`）

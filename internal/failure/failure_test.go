@@ -62,7 +62,7 @@ func TestRecorderRecord(t *testing.T) {
 	event := Event{
 		Phase:   PhaseInstallPlanner,
 		Module:  "p2-smoke",
-		Model:   "deepseek-ai/DeepSeek-V3.2",
+		Model:   "deepseek-ai/DeepSeek-V4-Flash",
 		Message: "planner failed and fallback used",
 		Error:   "siliconflow request failed with status 403",
 		Context: map[string]any{

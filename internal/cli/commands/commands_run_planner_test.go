@@ -78,6 +78,7 @@ func TestBuildLlamaServerArgs(t *testing.T) {
 		},
 		llamaBatchParams{BatchSize: 256, UBatchSize: 128},
 		`{"enable_thinking":false}`,
+		"",
 	)
 	joined := strings.Join(args, " ")
 
@@ -108,6 +109,7 @@ func TestBuildLlamaServerArgsSkipsOptional(t *testing.T) {
 		8080,
 		llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20, MinP: 0, PresencePenalty: 1.5, RepeatPenalty: 1.0},
 		llamaBatchParams{},
+		"",
 		"",
 	)
 	joined := strings.Join(args, " ")
@@ -198,7 +200,7 @@ func TestSuggestAdviceWithStubProvider(t *testing.T) {
 		return registry, nil
 	}
 
-	cfg := config.LLMConfig{Provider: "stub", Model: "deepseek-ai/DeepSeek-V3.2", TimeoutSeconds: 5}
+	cfg := config.LLMConfig{Provider: "stub", Model: "deepseek-ai/DeepSeek-V4-Flash", TimeoutSeconds: 5}
 	info := system.BaseInfoSummary{CPUCores: 8, MemoryKB: 32 * 1024 * 1024}
 	llamaAdvice, err := suggestLlamaAdvice(context.Background(), cfg, "demo", "/tmp/demo.gguf", info, llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}, llamaBatchParams{BatchSize: 256, UBatchSize: 128}, llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20}, "")
 	if err != nil {
@@ -243,7 +245,7 @@ func TestSuggestAdvicePromptIncludesRecommendationsAndBaseInfo(t *testing.T) {
 		return baseInfoJSON, nil
 	}
 
-	cfg := config.LLMConfig{Provider: "capture", Model: "deepseek-ai/DeepSeek-V3.2", TimeoutSeconds: 5}
+	cfg := config.LLMConfig{Provider: "capture", Model: "deepseek-ai/DeepSeek-V4-Flash", TimeoutSeconds: 5}
 	info := system.BaseInfoSummary{CPUCores: 8, MemoryKB: 32 * 1024 * 1024}
 	if _, err := suggestLlamaAdvice(context.Background(), cfg, "demo", "/tmp/demo.gguf", info, llamaRunDefaults{threads: 8, ctxSize: 4096, gpuLayers: 20}, llamaBatchParams{BatchSize: 256, UBatchSize: 128}, llamaSamplingParams{Temperature: 0.7, TopP: 0.8, TopK: 20}, ""); err != nil {
 		t.Fatalf("suggestLlamaAdvice returned error: %v", err)

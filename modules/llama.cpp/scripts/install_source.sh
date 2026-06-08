@@ -149,7 +149,7 @@ if [[ "${LLAMA_CUDA:-}" == "1" || "${LLAMA_CUDA:-}" == "ON" ]]; then
   fi
 fi
 
-cmake_flags=("-DLLAMA_BUILD_SERVER=ON" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_CXX_STANDARD=17")
+cmake_flags=("-DLLAMA_BUILD_SERVER=ON" "-DLLAMA_BUILD_UI=ON" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_CXX_STANDARD=17")
 compiler_pair="$(pick_gnu_compiler_pair || true)"
 if [[ -n "$compiler_pair" ]]; then
   c_compiler="${compiler_pair%%;*}"
@@ -200,3 +200,30 @@ if [[ ! -x /usr/local/bin/llama-cli ]]; then
   echo "llama-cli was not built successfully." >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Post-install summary: tell user how to use the Web UI
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== llama.cpp installation complete ==="
+echo ""
+echo "Installed binaries:"
+echo "  llama-cli      : /usr/local/bin/llama-cli"
+echo "  llama-server   : /usr/local/bin/llama-server"
+echo ""
+# Check whether the embedded Web UI was built
+if [[ -f "$source_dir/tools/ui/dist/index.html" ]] || \
+   (strings /usr/local/bin/llama-server 2>/dev/null | grep -qF 'text/html'); then
+  echo "Embedded Web UI : included in llama-server binary"
+else
+  echo "Embedded Web UI : NOT included (build-time provisioning failed)"
+  echo "  → To add the Web UI later, install Node.js & npm, then rebuild:"
+  echo "    LLAMA_BUILD_UI=ON cmake --build $source_dir/build --config Release"
+fi
+echo ""
+echo "Start a local API + Web UI server (no model specified yet):"
+echo "  llama-server --host 127.0.0.1 --port 8080 -m /path/to/model.gguf"
+echo ""
+echo "Once running, open http://127.0.0.1:8080 in your browser."
+echo "See $source_dir/RUN_PARAMS_RECOMMENDATIONS.md for tuning advice."
+echo ""

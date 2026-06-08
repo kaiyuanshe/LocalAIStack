@@ -47,8 +47,8 @@ const (
 	baseInfoPromptMaxBytes              = 16 * 1024
 	smartRunAdviceSchemaVersion         = 3
 	smartRunFailureLogMaxBytes          = 16 * 1024
-	smartRunErrorExtractModel           = "deepseek-ai/DeepSeek-V3.2"
-	smartRunRetryPlannerModel           = "deepseek-ai/DeepSeek-V3.2"
+	smartRunErrorExtractModel           = "deepseek-ai/DeepSeek-V4-Flash"
+	smartRunRetryPlannerModel           = "deepseek-ai/DeepSeek-V4-Flash"
 	smartRunRecoveryTimeoutSeconds      = 90
 )
 
@@ -437,6 +437,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			mgr := createModelManager()
 
 			var src modelmanager.ModelSource
+			autoSource := false
 			if source != "" {
 				switch strings.ToLower(source) {
 				case "ollama":
@@ -454,9 +455,14 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				if err != nil {
 					return err
 				}
+				autoSource = !hasExplicitSource(args[0])
 			}
 
-			cmd.Printf("Downloading model from %s: %s\n", src, modelID)
+			if autoSource {
+				cmd.Printf("Downloading model with automatic source selection: %s\n", modelID)
+			} else {
+				cmd.Printf("Downloading model from %s: %s\n", src, modelID)
+			}
 
 			progress := func(downloaded, total int64) {
 				if total > 0 {
@@ -478,6 +484,9 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 
 			if downloadedFrom != src {
 				cmd.Printf("\nModel not found on %s, downloaded from %s instead.\n", src, downloadedFrom)
+			}
+			if autoSource && downloadedFrom == src {
+				cmd.Printf("\nDownloaded from %s.\n", downloadedFrom)
 			}
 			cmd.Println("\nModel downloaded successfully!")
 			return nil
@@ -569,6 +578,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 			vllmMaxModelLenChanged := cmd.Flags().Changed("vllm-max-model-len")
 			vllmGpuMemUtilChanged := cmd.Flags().Changed("vllm-gpu-memory-utilization")
 			vllmTrustRemoteCodeChanged := cmd.Flags().Changed("vllm-trust-remote-code")
+			mmproj, _ := cmd.Flags().GetString("mmproj")
 			plannerProvider := ""
 			plannerModel := ""
 			defer func() {
@@ -867,6 +877,15 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				cmd.Printf("Auto-selected GGUF file: %s\n", filepath.Base(modelPath))
 			}
 
+			if mmproj != "" && !filepath.IsAbs(mmproj) {
+				mmproj = filepath.Join(modelDir, mmproj)
+			}
+			if mmproj != "" {
+				if _, err := os.Stat(mmproj); err != nil {
+					return fmt.Errorf("mmproj file not found: %s: %w", mmproj, err)
+				}
+			}
+
 			defaults := defaultLlamaRunParams(baseInfo)
 			defaults = autoTuneRunParams(defaults, baseInfo, modelPath)
 			if threads > 0 {
@@ -1054,6 +1073,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 				},
 				llamaBatchParams{BatchSize: resolvedBatch, UBatchSize: resolvedUBatch},
 				chatTemplateKwargs,
+				mmproj,
 			)
 
 			if autoBatch {
@@ -1080,6 +1100,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 					},
 					llamaBatchParams{BatchSize: resolvedBatch, UBatchSize: resolvedUBatch},
 					chatTemplateKwargs,
+					mmproj,
 				)
 				runCmd := exec.CommandContext(cmd.Context(), llamaPath, argsList...)
 				if err := addLlamaCppLibraryPath(runCmd); err != nil {
@@ -1175,6 +1196,7 @@ func RegisterModelCommands(rootCmd *cobra.Command) {
 	runCmd.Flags().Int("vllm-max-model-len", 0, "vLLM max model length (safetensors only)")
 	runCmd.Flags().Float64("vllm-gpu-memory-utilization", 0, "vLLM GPU memory utilization (0-1, safetensors only)")
 	runCmd.Flags().Bool("vllm-trust-remote-code", false, "Allow vLLM to execute model custom code from repo (safetensors only)")
+	runCmd.Flags().String("mmproj", "", "Path to multimodal projector (mmproj) GGUF for llama.cpp vision models")
 
 	rmCmd := &cobra.Command{
 		Use:   "rm [model-id]",
@@ -1397,12 +1419,12 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 		return
 	}
 
-	cmd.Printf("\n=== %s ===\n", strings.ToUpper(string(source)))
 	writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "NAME\tFORMAT\tTAGS\tDESCRIPTION")
+	fmt.Fprintf(writer, "\n=== %s ===\n", strings.ToUpper(string(source)))
+	fmt.Fprintln(writer, "NAME\tDOWNLOAD ID\tFORMAT\tTAGS\tDESCRIPTION")
 
 	for _, model := range models {
-		desc := model.Description
+		desc := sanitizeSearchResultCell(model.Description)
 		if len(desc) > 50 {
 			desc = desc[:47] + "..."
 		}
@@ -1428,10 +1450,26 @@ func displaySearchResults(cmd *cobra.Command, source modelmanager.ModelSource, m
 				tags = strings.Join(model.Tags, ", ")
 			}
 		}
-		fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", model.ID, model.Format, tags, desc)
+		fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", model.ID, sourceQualifiedModelID(source, model.ID), model.Format, tags, desc)
 	}
 
 	writer.Flush()
+}
+
+func sourceQualifiedModelID(source modelmanager.ModelSource, modelID string) string {
+	switch source {
+	case modelmanager.SourceHuggingFace:
+		return "hf:" + modelID
+	case modelmanager.SourceModelScope:
+		return "modelscope:" + modelID
+	default:
+		return string(source) + ":" + modelID
+	}
+}
+
+func sanitizeSearchResultCell(value string) string {
+	replacer := strings.NewReplacer("\r", " ", "\n", " ", "\t", " ")
+	return strings.Join(strings.Fields(replacer.Replace(value)), " ")
 }
 
 func printConfigPlanText(cmd *cobra.Command, plan configplanner.Plan) {
@@ -2103,7 +2141,7 @@ func suggestVLLMServedModelName(modelID string) string {
 	return name
 }
 
-func buildLlamaServerArgs(modelPath string, defaults llamaRunDefaults, host string, port int, sampling llamaSamplingParams, batch llamaBatchParams, chatTemplateKwargs string) []string {
+func buildLlamaServerArgs(modelPath string, defaults llamaRunDefaults, host string, port int, sampling llamaSamplingParams, batch llamaBatchParams, chatTemplateKwargs string, mmproj string) []string {
 	args := []string{
 		"--model", modelPath,
 		"--threads", strconv.Itoa(defaults.threads),
@@ -2129,6 +2167,9 @@ func buildLlamaServerArgs(modelPath string, defaults llamaRunDefaults, host stri
 	}
 	if strings.TrimSpace(chatTemplateKwargs) != "" {
 		args = append(args, "--chat-template-kwargs", chatTemplateKwargs)
+	}
+	if strings.TrimSpace(mmproj) != "" {
+		args = append(args, "--mmproj", mmproj)
 	}
 	return args
 }
@@ -3113,9 +3154,15 @@ func readModelMetadata(modelDir string) (modelMetadata, error) {
 func hasExplicitSource(input string) bool {
 	inputLower := strings.ToLower(strings.TrimSpace(input))
 	return strings.HasPrefix(inputLower, "ollama:") ||
+		strings.HasPrefix(inputLower, "ollama/") ||
 		strings.HasPrefix(inputLower, "huggingface:") ||
+		strings.HasPrefix(inputLower, "huggingface/") ||
 		strings.HasPrefix(inputLower, "hf:") ||
-		strings.HasPrefix(inputLower, "modelscope:")
+		strings.HasPrefix(inputLower, "hf/") ||
+		strings.HasPrefix(inputLower, "modelscope:") ||
+		strings.HasPrefix(inputLower, "modelscope/") ||
+		strings.HasPrefix(inputLower, "ms:") ||
+		strings.HasPrefix(inputLower, "ms/")
 }
 
 func resolveGGUFFile(modelDir string, ggufFiles []string, selected string) (string, bool, error) {

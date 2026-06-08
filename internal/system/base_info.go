@@ -57,23 +57,43 @@ func formatBaseInfo(report info.BaseInfo, format string) (string, error) {
 		return "", i18n.Errorf("unsupported format: %s", format)
 	}
 	payload := struct {
-		CPU struct {
+		OS   string `json:"os"`
+		Arch string `json:"arch"`
+		CPU  struct {
 			Model string `json:"model"`
 			Cores int    `json:"cores"`
 		} `json:"cpu"`
-		GPU    string `json:"gpu"`
-		Memory string `json:"memory"`
-		Disk   struct {
+		GPU        string           `json:"gpu"`
+		GPUDetails []info.GPUDetail `json:"gpu_details,omitempty"`
+		Memory     string           `json:"memory"`
+		Disk       struct {
 			Total     string `json:"total"`
 			Available string `json:"available"`
 		} `json:"disk"`
+		Runtime struct {
+			DockerAvailable        bool   `json:"docker_available"`
+			Docker                 string `json:"docker"`
+			DockerComposeAvailable bool   `json:"docker_compose_available"`
+			DockerCompose          string `json:"docker_compose"`
+			Podman                 string `json:"podman"`
+			MetalAvailable         bool   `json:"metal_available"`
+		} `json:"runtime"`
 	}{}
+	payload.OS = report.OS
+	payload.Arch = report.Arch
 	payload.CPU.Model = report.CPUModel
 	payload.CPU.Cores = report.CPUCores
 	payload.GPU = report.GPU
+	payload.GPUDetails = report.GPUDetails
 	payload.Memory = report.MemoryTotal
 	payload.Disk.Total = report.DiskTotal
 	payload.Disk.Available = report.DiskAvailable
+	payload.Runtime.DockerAvailable = report.DockerAvailable
+	payload.Runtime.Docker = report.Docker
+	payload.Runtime.DockerComposeAvailable = report.DockerComposeAvailable
+	payload.Runtime.DockerCompose = report.DockerCompose
+	payload.Runtime.Podman = report.Podman
+	payload.Runtime.MetalAvailable = report.MetalAvailable
 
 	raw, err := json.Marshal(payload)
 	if err != nil {

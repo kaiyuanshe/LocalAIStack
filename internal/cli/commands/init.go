@@ -113,7 +113,7 @@ func newInitCommand() *cobra.Command {
 	initCmd.Flags().StringVar(&apiKey, "api-key", "", i18n.T("SiliconFlow API key"))
 	initCmd.Flags().StringVar(&language, "language", "", i18n.T("Preferred interaction language"))
 	initCmd.Flags().StringVar(&assistantProvider, "assistant-provider", "siliconflow", i18n.T("Assistant provider"))
-	initCmd.Flags().StringVar(&assistantModel, "assistant-model", "deepseek-ai/DeepSeek-V3.2", i18n.T("Assistant model"))
+	initCmd.Flags().StringVar(&assistantModel, "assistant-model", "deepseek-ai/DeepSeek-V4-Flash", i18n.T("Assistant model"))
 	initCmd.Flags().StringVar(&assistantBaseURL, "assistant-base-url", "https://api.siliconflow.cn/v1/chat/completions", i18n.T("Assistant API base URL"))
 	initCmd.Flags().IntVar(&assistantTimeoutSeconds, "assistant-timeout-seconds", 30, i18n.T("Assistant timeout in seconds"))
 	initCmd.Flags().StringVar(&translationProvider, "translation-provider", "siliconflow", i18n.T("Translation provider"))

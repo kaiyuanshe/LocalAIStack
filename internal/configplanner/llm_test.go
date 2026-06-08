@@ -27,7 +27,7 @@ func TestBuildLLMPlanWithStubProvider(t *testing.T) {
 	}
 	cfg := config.LLMConfig{
 		Provider:       "stub",
-		Model:          "deepseek-ai/DeepSeek-V3.2",
+		Model:          "deepseek-ai/DeepSeek-V4-Flash",
 		TimeoutSeconds: 5,
 	}
 

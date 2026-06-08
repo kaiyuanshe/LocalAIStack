@@ -35,6 +35,36 @@ func (p *stubProvider) GetModelInfo(ctx context.Context, modelID string) (*Model
 	return nil, nil
 }
 
+func TestParseModelID_SourcePrefixes(t *testing.T) {
+	tests := []struct {
+		input      string
+		wantSource ModelSource
+		wantID     string
+	}{
+		{input: "ollama:qwen3:8b", wantSource: SourceOllama, wantID: "qwen3:8b"},
+		{input: "ollama/qwen3:8b", wantSource: SourceOllama, wantID: "qwen3:8b"},
+		{input: "huggingface:Qwen/Qwen3-8B", wantSource: SourceHuggingFace, wantID: "Qwen/Qwen3-8B"},
+		{input: "huggingface/Qwen/Qwen3-8B", wantSource: SourceHuggingFace, wantID: "Qwen/Qwen3-8B"},
+		{input: "hf:Qwen/Qwen3-8B", wantSource: SourceHuggingFace, wantID: "Qwen/Qwen3-8B"},
+		{input: "hf/Qwen/Qwen3-8B", wantSource: SourceHuggingFace, wantID: "Qwen/Qwen3-8B"},
+		{input: "modelscope:cyankiwi/Qwen3.6-27B-AWQ-INT4", wantSource: SourceModelScope, wantID: "cyankiwi/Qwen3.6-27B-AWQ-INT4"},
+		{input: "modelscope/cyankiwi/Qwen3.6-27B-AWQ-INT4", wantSource: SourceModelScope, wantID: "cyankiwi/Qwen3.6-27B-AWQ-INT4"},
+		{input: "ms:cyankiwi/Qwen3.6-27B-AWQ-INT4", wantSource: SourceModelScope, wantID: "cyankiwi/Qwen3.6-27B-AWQ-INT4"},
+		{input: "ms/cyankiwi/Qwen3.6-27B-AWQ-INT4", wantSource: SourceModelScope, wantID: "cyankiwi/Qwen3.6-27B-AWQ-INT4"},
+		{input: "cyankiwi/Qwen3.6-27B-AWQ-INT4", wantSource: SourceHuggingFace, wantID: "cyankiwi/Qwen3.6-27B-AWQ-INT4"},
+	}
+
+	for _, tt := range tests {
+		gotSource, gotID, err := ParseModelID(tt.input)
+		if err != nil {
+			t.Fatalf("ParseModelID(%q) returned error: %v", tt.input, err)
+		}
+		if gotSource != tt.wantSource || gotID != tt.wantID {
+			t.Fatalf("ParseModelID(%q) = (%s, %q), want (%s, %q)", tt.input, gotSource, gotID, tt.wantSource, tt.wantID)
+		}
+	}
+}
+
 func TestManagerDownloadModel_FallsBackToModelScopeCLI(t *testing.T) {
 	modelscopeDir := t.TempDir()
 	modelscopePath := filepath.Join(modelscopeDir, "modelscope")

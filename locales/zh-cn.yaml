@@ -5,6 +5,7 @@
 '%s; stderr: %s': '%s；标准错误输出（stderr）：%s'
 '- %s': '- %s'
 "- %s\t%s": "- %s\t%s"
+“recipes”根目录: “recipes”根目录
 Allow vLLM to execute model custom code from repo (safetensors only): 允许 vLLM 从仓库中执行模型的自定义代码（仅限使用 safetensors）。
 Assistant API base URL: 助理 API 基础 URL
 Assistant model: 辅助模型
@@ -14,15 +15,23 @@ Auto-tune llama.cpp --batch-size/--ubatch-size from hardware and model: 自动�
 'Available LLM providers:': 可用的大型语言模型（LLM）提供商：
 Base system info written to %s: 基础系统信息已写入到 %s 文件中。
 Batch size for llama.cpp (0 = auto): '`lama.cpp` 的批量处理大小（0 表示自动选择）'
+Build expert recipe artifacts from a saved plan: 根据保存的规划来生成专家级解决方案的文档或材料。
 CPU threads for llama.cpp (0 = auto): '`lama.cpp` 的 CPU 线程数量（0 表示自动分配线程）：'
+Check an OpenAI-compatible generation endpoint: 请检查一个与 OpenAI 兼容的生成端点（generation endpoint）。
 Check module installation status: 检查模块的安装状态。
+Check the RAG API health endpoint: 请检查 RAG API 的健康检查端点（health endpoint）。
+Check whether an inference recipe can run on this machine: 检查某个推理流程（inference recipe）是否可以在这台机器上运行。
+Chunk overlap in runes: 这些符文在排列上存在重叠部分。
+Chunk size in runes: 以卢恩文表示的字符块大小
 Configuration written to %s: 配置信息已写入到 %s 文件中。
 Context size for llama.cpp (0 = auto): '`lama.cpp` 的上下文大小（0 表示自动选择）'
+Detect hardware and runtime facts: 检测硬件信息及运行时环境的相关数据。
 Detect hardware capabilities: 检测硬件功能
 Detecting hardware...: 正在检测硬件……
 Download a model: 下载一个模型。
 Download missing tokenizer/config files: 下载缺失的标记器（tokenizer）文件和配置文件。
 'Error: %v': 错误：%v
+Expert recipe planning and management: 专家级的食谱规划与管理
 Fail immediately when planner cannot generate a valid plan: 当规划器无法生成有效的计划时，应立即失败。
 Fail model run if smart-run cannot obtain valid LLM advice: 如果 smart-run 无法获取有效的 LLM 建议，则模型运行失败。
 Filter by category (auth/rate_limit/timeout/network/command_exit/...): 按类别筛选（auth/rate_limit/timeout/network/command_exit/...）
@@ -346,36 +355,47 @@ Generate the autocompletion script for zsh: |-
 
     将上述脚本保存为 `completion_script.sh`，然后通过运行 `chmod +x completion_script.sh` 使其可执行。接下来，你可以在 Zsh 中使用 `completion_script.sh` 来实现自动补全功能。例如，在输入命令时，按下 Tab 键，脚本会显示相关的补全建议。
 Get service status: 获取服务状态
+HTTP timeout: HTTP超时
+HTTP timeout per request: 每次请求的 HTTP 超时时间
 Help about any command: 关于任何命令的帮助信息
 ? |-
     Help provides help for any command in the application.
     Simply type localaistack help [path to command] for full details.
 : "“Help”功能可以为应用程序中的任何命令提供帮助。  \n只需输入 `localaistack help [命令路径]` 即可获取详细信息。"
 Host to bind llama.cpp server: 需要绑定 llama.cpp 服务器的主机
+Index local Markdown, TXT, and PDF documents: 索引本地的 Markdown、TXT 和 PDF 文档
 Initialize LocalAIStack interactive configuration: 初始化 LocalAIStack 的交互式配置
 Inspect failure handling records: 检查故障处理记录。
 Install a module: 安装一个模块。
 Installed: 已安装
 'Installing module: %s': 正在安装模块：%s
+Interactive expert recipe planning: 交互式专家配方规划
 JSON object passed to llama.cpp --chat-template-kwargs (e.g. '{"enable_thinking":false}'): '传递给 llama.cpp 的 JSON 对象（例如：`{"enable_thinking": false}`）'
 List all available modules: 列出所有可用的模块。
 List available LLM providers: 以下是可用的大型语言模型（LLM）提供商列表：
 List downloaded models: 已下载的模型列表
 List persisted smart-run parameters: 列出已保存的智能运行参数（Smart-Run Parameters）
 List recent failure records: 列出最近的故障记录
+List registered recipes: 已注册的食谱列表
+List saved expert recipes: 已保存的专家食谱列表
 LocalAIStack - Local AI workstation management: LocalAIStack – 本地人工智能工作站管理
 ? LocalAIStack is an open, modular software stack for building and operating local AI workstations. It provides unified control over AI development environments, inference runtimes, models, and applications.
 : LocalAIStack 是一个开源的、模块化的软件栈，用于构建和运行本地人工智能工作站。它提供了对人工智能开发环境、推理运行时、模型以及应用程序的统一管理功能。
 Manage AI models: 管理人工智能模型
 Manage LLM providers: 管理大型语言模型（LLM）提供商
+Manage LocalAIStack recipes: 管理 LocalAIStack 食谱（Recipes）
 Manage persisted smart-run parameters: 管理持久化的智能运行参数
 Manage services: 管理服务
 Manage software modules: 管理软件模块
 'Manageable modules:': 可管理的模块：
 Maximum number of failure events: 最大失败事件数量
 Maximum number of results per source: 每个来源的最大结果数量
+Maximum recommendations to print: 最多可打印的建议数量
+'Memory strategy: safe, balanced, aggressive': 内存策略：安全型、平衡型、激进型
 Micro batch size for llama.cpp (0 = auto): '`lama.cpp` 的微批次大小（0 表示自动选择）：'
 Min-p sampling for llama.cpp (0-1): '`lama.cpp` 中的 Min-p 采样（范围：0-1）'
+Model name for generation: 用于生成的模型名称
+Model name to use for chat completion: 用于聊天自动补全的模型名称
 Module %s installed successfully.: 模块 %s 安装成功。
 Module %s is installed and healthy.: 模块 %s 已成功安装，并且运行状态正常。
 Module %s purged successfully.: 模块 %s 已成功清除。
@@ -384,8 +404,14 @@ Module %s updated successfully.: 模块 %s 已成功更新。
 'Module install failed: %s': 模块安装失败：%s
 'Module update failed: %s': 模块更新失败：%s
 Not installed: 未安装。
+Number of chunks to retrieve: 需要检索的块数
+Number of sequential requests: 连续请求的数量
+OpenAI-compatible base URL: 与 OpenAI 兼容的基础 URL
+OpenAI-compatible generation base URL: 与 OpenAI 兼容的生成基础 URL
+OpenAI-compatible generation base URL for direct local query: 与 OpenAI 兼容的生成模型基础 URL，可用于直接进行本地查询。
 Optional model id to include in planning context: （可选的模型ID，用于纳入规划流程中）
 Output format for plan display (text|json): "**计划显示格式（文本|JSON）**  \n\n**文本格式：**  \n```\n计划名称：%s  \n开始日期：%d  \n结束日期：%d  \n任务列表：  \n- 任务1：%q  \n- 任务2：%q  \n- 任务3：%q  \n...  \n备注：  \n- 重要提示：%s  \n- 需要关注的事项：%s  \n```  \n\n**JSON格式：**  \n```json\n{\n  \"planName\": \"%s\",\n  \"startDate\": \"%d\",\n  \"endDate\": \"%d\",\n  \"tasks\": [\n    {\n      \"taskId\": 1,\n      \"taskName\": \"%q\",\n      \"status\": \"已完成\"\n    },\n    {\n      \"taskId\": 2,\n      \"taskName\": \"%q\",\n      \"status\": \"进行中\"\n    },\n    {\n      \"taskId\": 3,\n      \"taskName\": \"%q\",\n      \"status\": \"待处理\"\n    },\n    // 其他任务\n  ],\n  \"remarks\": [\n    \"重要提示：%s\",\n    \"需要关注的事项：%s\"\n  ]\n}\n```"
+'Output format: text or json': 当然可以！请提供您需要翻译的文本，我会将其翻译成中文。
 'Output format: text|json': |-
     ```text
     | text     | json         |
@@ -395,38 +421,129 @@ Output format for plan display (text|json): "**计划显示格式（文本|JSON�
     | 行号在转换后可能会丢失。| {"line_break": "转换后可能会丢失行号。"} |
     | 注意：某些特殊字符可能需要额外的处理。| {"note": "注意：某些特殊字符可能需要额外的处理。"} |
     ```
+Path to multimodal projector (mmproj) GGUF for llama.cpp vision models: 多模态投影仪（mmproj）的路径，用于 llama.cpp 视觉模型（格式为 GGUF）
 Persist config plan to ~/.localaistack/config-plans/<module>.json: 将配置计划保存到 `~/.localaistack/config-plans/<module>.json` 文件中。
 Port to bind llama.cpp server: 用于将代码绑定到 llama.cpp 服务器的端口。
 Preferred interaction language: 首选的交互语言
 Preferred language: 首选语言
+Preferred model size such as 8b, 14b, 32b: 首选的模型大小，例如 8b、14b、32b
 Presence penalty for llama.cpp: lama.cpp 文件中存在的“惩罚机制”（即某些代码或设计导致的负面影响）
 Print generated plan without saving: 打印生成的计划，无需保存。
+Print generated runtime config hints for a recipe: 打印为某个“配方”（recipe）生成的运行时配置提示信息。
 Print planner source and reason: 打印计划器的源代码及其编写原因。
+Print selector-normalized facts when output is json: 当输出格式为 JSON 时，应打印经过选择器规范化的信息。
 Print smart-run planner source and fallback reason: 打印 Smart-Run 规划器的源代码以及采用备用方案（fallback solution）的原因。
 Print the final runtime command without launching the process: 仅打印最终的运行时命令，而不要实际启动该进程。
+Print the run command without starting it: 仅打印 `run` 命令的文本，而不要实际执行该命令。
 Purge a module: “Purge a module” 的意思是“删除或清除某个模块”。
 'Purging module: %s': 正在清理模块：%s
+Query the RAG API or local RAG index: 查询 RAG API 或本地的 RAG 索引。
+RAG API base URL: RAG API 基本 URL
+RAG API listen address: RAG API 监听地址
+RAG index path: RAG索引路径
+Recommend Express inference recipes for this machine: 为这台机器推荐一些 Express 推理（inference）相关的解决方案或使用方法。
 Remove a downloaded model: 删除已下载的模型
 Remove persisted smart-run parameters for a model: 删除模型中已保存的智能运行参数（smart-run parameters）。
 Repeat penalty for llama.cpp: '`lama.cpp` 文件中的重复代码惩罚机制'
+Run Express local-docs RAG workflows: 运行 Express 的 local-docs RAG（Retrieval, Analysis, and Generation）工作流程。
+Run a lightweight OpenAI-compatible benchmark: 运行一个轻量级的、与 OpenAI 兼容的基准测试程序。
 Run a local model: 运行一个本地模型。
+Run an Express inference recipe: 运行一个 Express 推理任务（inference recipe）。
 Run module-specific settings: 运行模块特定的设置
+Run verified Express recipes: 运行经过验证的 Express 开发方案/模板（ recipes）。
 Sampling temperature for llama.cpp: '`lama.cpp` 文件中的采样温度'
 Search for models: 搜索模型
+Serve the local RAG API: 提供本地的 RAG（Retrieval, Adaptation, and Generation）API 服务。
 'Service status: %s': 服务状态：%s
+Show expert recipe details: 显示专家食谱的详细信息
 Show one failure event with suggested actions: 显示一个失败事件，并提供相应的建议措施。
 Show system information: 显示系统信息
 SiliconFlow API Key: SiliconFlow API 密钥
 SiliconFlow API key: SiliconFlow API密钥
+Skip preflight checks before running: 在运行之前，请跳过预飞行检查（preflight checks）。
 Source of the model (ollama, huggingface, modelscope): 模型的来源（ollama、huggingface、modelscope）
 Source to download from (ollama, huggingface, modelscope): 可以从以下来源下载模型：ollama、huggingface、modelscope。
 Source to search (ollama, huggingface, modelscope, or all): 要搜索的来源（ollama、huggingface、modelscope 或所有来源）：
 Specific GGUF filename to run: 要运行的具体 GGUF 文件名
 Specific model file to download (e.g. Q4_K_M.gguf): 需要下载的具体模型文件（例如：Q4_K_M.gguf）
+Start a generated expert recipe with Docker Compose: |-
+    以下是一个使用 Docker Compose 创建应用程序的示例专家指南：
+
+    ## 使用 Docker Compose 创建应用程序
+
+    Docker Compose 是一个用于定义和管理多容器 Docker 应用程序的工具。它允许您通过一个 YAML 文件来配置应用程序的所有组件（如容器、网络、数据卷等），从而简化应用程序的部署和管理过程。
+
+    ### 1. 安装 Docker Compose
+
+    首先，确保您已经安装了 Docker。如果尚未安装，请访问 [Docker 官网](https://www.docker.com/) 下载并安装适合您的操作系统的 Docker 版本。
+
+    接下来，安装 Docker Compose。在大多数操作系统上，您可以通过以下命令安装 Docker Compose：
+
+    ```bash
+    curl -L https://download.docker.com/compose/install | bash
+    ```
+
+    ### 2. 创建 Docker Compose 文件
+
+    在项目的根目录下创建一个名为 `docker-compose.yml` 的文件。这个文件将用于定义您的应用程序的所有配置。
+
+    ### 3. 编写 Docker Compose 配置文件
+
+    在 `docker-compose.yml` 文件中，使用以下格式定义您的应用程序：
+
+    ```yaml
+    version: '3.8'
+    services:
+      web:
+        image: python:3.9-slim
+        ports:
+          - "80:80"
+        command: ["python", "app.py"]
+        environment:
+          - DB_HOST: "localhost"
+          - DB_PORT: "5432"
+          - DB_USER: "root"
+          - DB_PASSWORD: "password"
+      db:
+        image: postgres
+        volumes:
+          - ./data:/data
+        command: ["postgres", "-D", "dbname=my_database", "-U root", "-p 5432"]
+    ```
+
+    在这个示例中，我们定义了两个服务：`web` 和 `db`。
+
+    - **web** 服务使用 Python 3.9 运行一个简单的 Web 应用程序（假设 `app.py` 是应用程序的主文件）。
+    - **db** 服务使用 PostgreSQL 数据库。我们将本地主机的 `data` 目录挂载到数据库的数据目录上。
+
+    ### 4. 构建和运行应用程序
+
+    在命令行中，导航到项目的根目录，然后执行以下命令：
+
+    ```bash
+    docker-compose up
+    ```
+
+    这将启动 `web` 和 `db` 服务，并打印出它们的容器 ID 和端口信息。
+
+    ### 5. 测试应用程序
+
+    现在，您可以通过访问 `http://localhost:80` 来测试 Web 应用程序。同时，您可以通过 `http://localhost:5432` 来测试数据库。
+
+    ### 6. 删除应用程序
+
+    要删除应用程序及其相关资源，请执行以下命令：
+
+    ```bash
+    docker-compose down
+    ```
+
+    希望这个示例能帮助您了解如何使用 Docker Compose 来创建和管理多容器 Docker 应用程序。如果您有任何问题，请随时提问！
 Start a service: 启动一个服务
 Stop a service: 停止一个服务
 'System information:': 系统信息：
 System management: 系统管理
+'Target workload: api, chat, rag, agent': 目标工作负载：API、聊天、客服支持、代理（agent）
 Tensor split for multi-GPU (comma-separated percentages): 用于多 GPU 的张量分割（百分比值以逗号分隔）
 Top-k sampling for llama.cpp (0 disables): 对于 llama.cpp，采用前 k 个样本的采样方法（k=0 时禁用该功能）。
 Top-p nucleus sampling for llama.cpp (0-1): 对于 llama.cpp 文件，采用“Top-p 核心采样”方法（范围为 0-1）
@@ -439,10 +556,14 @@ Uninstall a module: 卸载一个模块
 Update a module: 更新一个模块
 'Updating module: %s': 正在更新模块：%s
 Use LLM to refine runtime parameters from hardware and model context: 使用大型语言模型（LLM）根据硬件和模型上下文来优化运行时参数。
+Validate one recipe file or the full recipes registry: 您可以验证单个配方文件，或者验证整个配方注册表。
+candidate number to build, starting at 1: 要构建的候选编号，从 1 开始
 config file (default is $HOME/.localaistack/config.yaml): 配置文件（默认位于 $HOME/.localaistack/config.yaml）
 config file path (default is ~/.localaistack/config.yaml): 配置文件路径（默认为 ~/.localaistack/config.yaml）
+directory for generated expert recipe artifacts: 用于存储生成的专家配方相关文件的目录
 disable completion descriptions: 禁用补全描述（Disable completion descriptions）
 docker=%s; podman=%s: docker=%s; podman=%s
+help for build: 关于构建的帮助（Help for building）
 help for check: 关于检查的帮助信息
 help for config-plan: 关于 `config-plan` 的帮助信息：
 help for detect: 关于检测的帮助信息……
@@ -451,6 +572,8 @@ help for info: 需要帮助获取信息吗？
 help for init: "关于 `init` 的帮助信息：  \n`init` 是一个用于初始化系统或程序的命令或函数。它的具体用途取决于上下文。在 Linux 系统中，`init` 是一个系统初始化进程（System Initialization Process），负责在系统启动时加载必要的驱动程序、服务以及设置系统环境。在某些编程语言中，`init` 可能是一个用于初始化对象的函数或方法。  \n\n如果您需要更多关于 `init` 的详细信息，请提供更多的上下文或具体的使用场景，以便我能给出更准确的帮助。"
 help for install: 安装帮助
 help for list: 关于列表的帮助信息
+help for localaistack: 关于 LocalStack 的帮助：
+help for plan: 关于计划的帮助
 help for purge: "关于“purge”的帮助：  \n“Purge”是一个常见的计算机操作术语，通常指的是清除或删除某些数据、文件或系统资源。具体含义取决于上下文：  \n\n1. **数据清理**：在数据库或文件系统中，可以清除过时、重复或不需要的数据。例如，删除旧的日志文件或备份文件。  \n2. **系统优化**：在操作系统或应用程序中，可以清除临时文件、缓存或无用的进程，以释放系统资源并提高性能。  \n3. **安全策略**：在网络安全领域，可以清除恶意软件或入侵痕迹，以保护系统安全。  \n\n例如：  \n- 在数据库中，可以使用`DELETE`语句来清除旧记录：  \n  ```sql\n  DELETE FROM table_name WHERE creation_date > '2021-01-01';\n  ```  \n- 在操作系统上，可以使用磁盘清理工具来清理临时文件：  \n  ```bash\n  cleanmgr /s\n  ```  \n\n如果您需要更具体的帮助或指导，请提供更多关于您所遇到的问题的详细信息。"
 help for repair: 需要帮助进行修复。
 help for rm: "关于 `rm` 命令的帮助信息：  \n`rm` 是一个用于删除文件的命令。它接受一个或多个文件名作为参数，并将这些文件从文件系统中删除。  \n\n**基本用法：**  \n`rm 文件名`  \n\n**注意：**  \n- 删除的文件将无法恢复。  \n- 如果要删除多个文件，可以使用文件名之间的空格或通配符（如 `*`）来指定多个文件。  \n- 如果要删除整个目录及其所有内容，可以使用 `-r` 选项（`rm -r 目录名`）。  \n\n**示例：**  \n- 删除单个文件：  \n  ```\n  rm example.txt\n  ```  \n- 删除多个文件：  \n  ```\n  rm example.txt example.log\n  ```  \n- 删除整个目录及其所有内容：  \n  ```\n  rm -r example_directory\n  ```  \n\n**更多信息：**  \n- 如果文件被其他程序占用（例如，正在被读取或写入），`rm` 命令可能无法成功删除该文件。在这种情况下，需要先关闭相关程序。  \n- 在某些系统中，可以使用 `rm -f` 选项强制删除文件，即使文件被其他程序占用。  \n\n**警告：**  \n使用 `rm` 命令时要小心，因为它会永久删除文件，因此请确保您确实要删除这些文件。"
@@ -459,12 +582,20 @@ help for search: 搜索帮助
 help for show: "关于“show”的帮助信息：  \n（由于“show”是一个非常通用的词汇，其具体含义和用法取决于上下文，因此这里只能提供一个基本的解释。）  \n“Show”通常用于表示“显示”或“展示”某物或信息。例如：  \n- “Please show me the document.”（请把文件给我看看。）  \n- “The program will show the results after processing.”（程序处理完成后会显示结果。）  \n如果需要更具体的帮助，请提供更多的上下文或信息！"
 help for status: 关于状态的帮助信息
 help for uninstall: 关于卸载的帮助：
+help for up: |-
+    “help for up” 这个短语在标准的语言资源中并不常见，可能是一个特定的术语或者是一个自定义的表达。如果它是某个软件、工具或系统的命令，那么它的含义将取决于该系统的文档或用户手册。如果这是一个拼写错误，正确的表达可能是 “help up”（意为“提供帮助”或“改善/提升某物”）。
+
+    如果你能提供更多的上下文信息，比如这个短语出现在哪里、它是用来做什么的，我可能能够给出更准确的翻译或解释。
 help for update: 关于更新的帮助信息
+help for validate: 关于如何进行验证的帮助……
 'install step %s failed: %w': 安装步骤 %s 失败：%w
 'module %q check failed: %s': 模块 %q 的检查失败：%s
 'module %q check failed: %v': 模块 %q 的检查失败：%v
 module %q does not provide a check script: 模块 %q 没有提供相应的检查脚本。
 module %q not found: 模块 %q 未找到。
+print the Docker Compose command without running it: "仅输出 Docker Compose 命令的文本，而不实际执行该命令：  \n```  \nprint \"docker-compose up\"  \n```"
+recipes root directory: “recipes”根目录
+skip generated preflight.sh before starting: 在开始之前，请跳过自动生成的 `preflight.sh` 文件。
 'unknown (%s): %s': 未知（%s）：%s
 'unknown: %s': 未知：%s
 vLLM GPU memory utilization (0-1, safetensors only): vLLM GPU内存利用率（0-1，仅包括安全传感器数据）

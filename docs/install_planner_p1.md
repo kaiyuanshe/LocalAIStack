@@ -22,7 +22,7 @@ It does not cover config planner, run planner, or failure handling orchestration
 LocalAIStack uses two model roles:
 
 1. translation model: `i18n.translation.model` (default `tencent/Hunyuan-MT-7B`)
-2. assistant model: `llm.model` (default `deepseek-ai/DeepSeek-V3.2`)
+2. assistant model: `llm.model` (default `deepseek-ai/DeepSeek-V4-Flash`)
 
 Install planning uses the assistant model only.
 
@@ -127,11 +127,11 @@ export LOCALAISTACK_INSTALL_PLANNER_STRICT=1
 
 ---
 
-## 8. Proving DeepSeek-V3.2 Participation
+## 8. Proving DeepSeek Participation
 
 To prove the assistant model participates in install planning:
 
-1. ensure `llm.model=deepseek-ai/DeepSeek-V3.2`
+1. ensure `llm.model=deepseek-ai/DeepSeek-V4-Flash`
 2. enable debug mode and observe `source=llm`
 3. optionally enable strict mode and verify invalid key causes hard failure
 4. compare with fallback provider (for example `eino`) to confirm behavior difference

@@ -257,7 +257,7 @@ Start with the overview:
   --api-key "sk-xxxx" \
   --language zh-CN \
   --assistant-provider siliconflow \
-  --assistant-model deepseek-ai/DeepSeek-V3.2 \
+  --assistant-model deepseek-ai/DeepSeek-V4-Flash \
   --translation-provider siliconflow \
   --translation-model tencent/Hunyuan-MT-7B
 
@@ -274,7 +274,7 @@ Effects:
 * Generates the config file: `$HOME/.localaistack/config.yaml`
 * Default split responsibilities between two models:
   * Translation model: `tencent/Hunyuan-MT-7B`
-  * Assistant model: `deepseek-ai/DeepSeek-V3.2` (customizable)
+  * Assistant model: `deepseek-ai/DeepSeek-V4-Flash` (customizable)
 * Generates baseline hardware info in `base_info.json` for the install planner, config planner, and smart-run
 
 #### 3.2 Module Management (`module`)

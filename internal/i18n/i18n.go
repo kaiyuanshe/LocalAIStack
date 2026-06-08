@@ -61,6 +61,16 @@ func T(key string, args ...any) string {
 	return service.T(key, args...)
 }
 
+func Key(key string) string {
+	defaultMu.RLock()
+	service := defaultService
+	defaultMu.RUnlock()
+	if service == nil {
+		return key
+	}
+	return service.formatKey(key)
+}
+
 func Errorf(key string, args ...any) error {
 	defaultMu.RLock()
 	service := defaultService

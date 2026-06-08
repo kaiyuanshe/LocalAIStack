@@ -43,6 +43,9 @@ Tesla V100-SXM2-16GB
 	if summary.GPUCount != 2 {
 		t.Fatalf("expected GPUCount=2, got %d", summary.GPUCount)
 	}
+	if len(summary.GPUs) != 2 {
+		t.Fatalf("expected 2 GPU entries, got %+v", summary.GPUs)
+	}
 }
 
 func TestLoadBaseInfoSummary_MalformedInlineMarkdown(t *testing.T) {

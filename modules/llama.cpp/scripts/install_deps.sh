@@ -48,9 +48,86 @@ fi
 base_packages=(curl ca-certificates tar python3)
 build_packages=()
 cuda_host_packages=()
+webui_packages=()  # populated for source mode; kept empty for binary mode (set -u safety)
+
+# ---------------------------------------------------------------------------
+# ensure_node_for_webui
+#
+# The llama.cpp cmake build runs with sudo, but ui-assets.cmake invokes
+# npm.  If Node.js is installed via nvm (user-level, in ~/.nvm), sudo
+# cannot discover it.  This function guarantees a usable node + npm for
+# root by:
+#   1. Checking whether root already has a suitable node (≥ 18).
+#   2. If not, trying nvm: source ~/.nvm/nvm.sh, install LTS, symlink
+#      the resulting binaries to /usr/local/bin.
+#   3. Otherwise returning non-zero so the caller installs via the
+#      system package manager (apt / dnf / …).
+#
+# Returns 0 when node and npm are usable by root after the call;
+# non-zero when a system-package fallback is needed.
+# ---------------------------------------------------------------------------
+ensure_node_for_webui() {
+  local min_version=18
+
+  # 1. Already available for root?
+  if $SUDO command -v node >/dev/null 2>&1 && $SUDO command -v npm >/dev/null 2>&1; then
+    local node_ver
+    node_ver=$($SUDO node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)
+    if [[ "$node_ver" =~ ^[0-9]+$ && "$node_ver" -ge "$min_version" ]]; then
+      echo "Node.js v$($SUDO node -v) already available for root."
+      return 0
+    fi
+    echo "Node.js found but version $node_ver < $min_version; will upgrade."
+  fi
+
+  # 2. Try nvm (user-level; discovered via $HOME)
+  #    nvm.sh is not `set -u` clean, so we relax nounset for the
+  #    source + nvm commands and restore it afterwards.
+  local nvm_script="${HOME}/.nvm/nvm.sh"
+  if [[ -s "$nvm_script" ]]; then
+    echo "Found nvm at ${nvm_script}; installing Node.js LTS …"
+
+    set +u
+    # shellcheck disable=SC1090
+    source "$nvm_script" || { echo "Failed to source nvm.sh" >&2; set -u; return 1; }
+    nvm install --lts || true   # "already installed" is non-fatal
+    if ! nvm use --lts; then
+      echo "nvm use --lts failed" >&2
+      set -u
+      return 1
+    fi
+    set -u
+
+    local node_bin npm_bin
+    node_bin="$(command -v node 2>/dev/null || true)"
+    npm_bin="$(command -v npm 2>/dev/null || true)"
+
+    if [[ -z "$node_bin" || -z "$npm_bin" ]]; then
+      echo "nvm reported success but node/npm are not on PATH." >&2
+      return 1
+    fi
+
+    $SUDO ln -sf "$node_bin" /usr/local/bin/node
+    $SUDO ln -sf "$npm_bin"  /usr/local/bin/npm
+    echo "Node.js $(node -v) installed via nvm → /usr/local/bin/node"
+    return 0
+  fi
+
+  # 3. Neither nvm nor a suitable node for root — caller will use system packages
+  echo "nvm not found; will install Node.js via system package manager."
+  return 1
+}
 
 if [[ "$mode" == "source" ]]; then
   build_packages=(git cmake make gcc g++)
+  # Node.js and npm are needed to build the embedded Web UI (tools/ui).
+  # Prefer nvm (user-level, modern) over system packages, then symlink so
+  # the sudo cmake build can find node/npm.
+  if ensure_node_for_webui; then
+    webui_packages=()
+  else
+    webui_packages=(nodejs npm)
+  fi
 fi
 
 if [[ "$cuda_requested" -eq 1 ]]; then
@@ -78,27 +155,27 @@ install_with_apt() {
     fi
   fi
 
-  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${cuda_packages[@]}"
+  $SUDO apt-get install -y "${base_packages[@]}" "${build_packages[@]}" "${webui_packages[@]}" "${cuda_packages[@]}"
 }
 
 install_with_dnf() {
-  $SUDO dnf install -y "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}"
+  $SUDO dnf install -y "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}" "${webui_packages[@]}"
 }
 
 install_with_yum() {
-  $SUDO yum install -y "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}"
+  $SUDO yum install -y "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}" "${webui_packages[@]}"
 }
 
 install_with_pacman() {
-  $SUDO pacman -Sy --noconfirm "${base_packages[@]}" "${build_packages[@]}"
+  $SUDO pacman -Sy --noconfirm "${base_packages[@]}" "${build_packages[@]}" "${webui_packages[@]}"
 }
 
 install_with_zypper() {
-  $SUDO zypper --non-interactive install "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}"
+  $SUDO zypper --non-interactive install "${base_packages[@]}" "${build_packages[@]/g++/gcc-c++}" "${webui_packages[@]}"
 }
 
 install_with_apk() {
-  $SUDO apk add --no-cache "${base_packages[@]}" "${build_packages[@]}"
+  $SUDO apk add --no-cache "${base_packages[@]}" "${build_packages[@]}" "${webui_packages[@]}"
 }
 
 if command -v apt-get >/dev/null 2>&1; then

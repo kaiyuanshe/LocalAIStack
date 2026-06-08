@@ -26,7 +26,7 @@ tools_required:
   - make
 
 description:
-  purpose: Install and manage the llama.cpp runtime binaries
+  purpose: Install and manage the llama.cpp runtime binaries (including embedded Web UI)
   scope:
     - install
     - configure
@@ -37,6 +37,11 @@ description:
   non_goals:
     - manage model files
     - expose a systemd service
+    - auto-start the server (use `llama-server ...` manually)
+  notes:
+    - The Web UI (tools/ui) is embedded in llama-server during build.
+    - Source builds require Node.js + npm for UI compilation; binary installs use
+      prebuilt server with UI included in GitHub releases.
 
 dependencies:
   system:
@@ -49,6 +54,8 @@ dependencies:
     - gcc
     - g++
     - python3
+    - nodejs
+    - npm
 
 preconditions:
   - id: P10

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,22 +19,34 @@ import (
 )
 
 type BaseInfo struct {
-	CollectedAt         string   `json:"collected_at"`
-	OS                  string   `json:"os"`
-	Arch                string   `json:"arch"`
-	Kernel              string   `json:"kernel"`
-	CPUModel            string   `json:"cpu_model"`
-	CPUCores            int      `json:"cpu_cores"`
-	MemoryTotal         string   `json:"memory_total"`
-	GPU                 string   `json:"gpu"`
-	DiskTotal           string   `json:"disk_total"`
-	DiskAvailable       string   `json:"disk_available"`
-	Hostname            string   `json:"hostname"`
-	InternalIPs         []string `json:"internal_ips"`
-	Docker              string   `json:"docker"`
-	Podman              string   `json:"podman"`
-	LocalAIStackVersion string   `json:"localaistack_version"`
-	RuntimeCapabilities string   `json:"runtime_capabilities"`
+	CollectedAt            string      `json:"collected_at"`
+	OS                     string      `json:"os"`
+	Arch                   string      `json:"arch"`
+	Kernel                 string      `json:"kernel"`
+	CPUModel               string      `json:"cpu_model"`
+	CPUCores               int         `json:"cpu_cores"`
+	MemoryTotal            string      `json:"memory_total"`
+	GPU                    string      `json:"gpu"`
+	GPUDetails             []GPUDetail `json:"gpu_details,omitempty"`
+	DiskTotal              string      `json:"disk_total"`
+	DiskAvailable          string      `json:"disk_available"`
+	Hostname               string      `json:"hostname"`
+	InternalIPs            []string    `json:"internal_ips"`
+	Docker                 string      `json:"docker"`
+	DockerAvailable        bool        `json:"docker_available"`
+	DockerCompose          string      `json:"docker_compose"`
+	DockerComposeAvailable bool        `json:"docker_compose_available"`
+	Podman                 string      `json:"podman"`
+	MetalAvailable         bool        `json:"metal_available"`
+	LocalAIStackVersion    string      `json:"localaistack_version"`
+	RuntimeCapabilities    string      `json:"runtime_capabilities"`
+}
+
+type GPUDetail struct {
+	Vendor        string `json:"vendor,omitempty"`
+	Name          string `json:"name"`
+	VRAMGB        int    `json:"vram_gb,omitempty"`
+	DriverVersion string `json:"driver_version,omitempty"`
 }
 
 type RawCommandOutput struct {
@@ -59,11 +72,16 @@ func CollectBaseInfo(ctx context.Context) BaseInfo {
 	info.CPUModel = cpuModel(ctx)
 	info.MemoryTotal = memoryTotal(ctx)
 	info.GPU = gpuInfo(ctx)
+	info.GPUDetails = gpuDetails(ctx)
 	info.DiskTotal, info.DiskAvailable = diskInfo()
 	info.Hostname = hostname()
 	info.InternalIPs = internalIPs()
 	info.Docker = runtimeAvailability(ctx, "docker")
+	info.DockerAvailable = isRuntimeAvailable(info.Docker)
+	info.DockerCompose = dockerComposeAvailability(ctx)
+	info.DockerComposeAvailable = isRuntimeAvailable(info.DockerCompose)
 	info.Podman = runtimeAvailability(ctx, "podman")
+	info.MetalAvailable = runtime.GOOS == "darwin"
 	info.RuntimeCapabilities = runtimeCapabilities(info.Docker, info.Podman)
 
 	return info
@@ -86,13 +104,18 @@ func CollectBaseInfoWithRaw(ctx context.Context) (BaseInfo, []RawCommandOutput) 
 	info.CPUModel, rawOutputs = cpuModelWithRaw(ctx, rawOutputs)
 	info.MemoryTotal, rawOutputs = memoryTotalWithRaw(ctx, rawOutputs)
 	info.GPU, rawOutputs = gpuInfoWithRaw(ctx, rawOutputs)
+	info.GPUDetails, rawOutputs = gpuDetailsWithRaw(ctx, rawOutputs)
 	info.DiskTotal, info.DiskAvailable = diskInfo()
 	rawOutputs = append(rawOutputs, diskInfoRaw(ctx)...)
 	info.Hostname = hostname()
 	info.InternalIPs = internalIPs()
 	rawOutputs = append(rawOutputs, networkInfoRaw(ctx)...)
 	info.Docker, rawOutputs = runtimeAvailabilityWithRaw(ctx, rawOutputs, "docker")
+	info.DockerAvailable = isRuntimeAvailable(info.Docker)
+	info.DockerCompose, rawOutputs = dockerComposeAvailabilityWithRaw(ctx, rawOutputs)
+	info.DockerComposeAvailable = isRuntimeAvailable(info.DockerCompose)
 	info.Podman, rawOutputs = runtimeAvailabilityWithRaw(ctx, rawOutputs, "podman")
+	info.MetalAvailable = runtime.GOOS == "darwin"
 	info.RuntimeCapabilities = runtimeCapabilities(info.Docker, info.Podman)
 
 	return info, rawOutputs
@@ -401,6 +424,66 @@ func gpuInfoWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string,
 	}
 }
 
+func gpuDetails(ctx context.Context) []GPUDetail {
+	details, _ := queryNVIDIAGPUDetails(ctx)
+	if len(details) > 0 {
+		return details
+	}
+	names := parseGPUEntries(gpuInfo(ctx))
+	result := make([]GPUDetail, 0, len(names))
+	for _, name := range names {
+		result = append(result, GPUDetail{
+			Vendor: guessGPUVendor(name),
+			Name:   name,
+			VRAMGB: inferVRAMGBFromName(name),
+		})
+	}
+	return result
+}
+
+func gpuDetailsWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) ([]GPUDetail, []RawCommandOutput) {
+	stdout, stderr, err := runCommand(ctx, "nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits")
+	rawOutputs = append(rawOutputs, newRawOutput("nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits", stdout, stderr, err))
+	if err == nil {
+		details := parseNVIDIAGPUDetails(stdout)
+		if len(details) > 0 {
+			return details, rawOutputs
+		}
+	}
+	return gpuDetails(ctx), rawOutputs
+}
+
+func queryNVIDIAGPUDetails(ctx context.Context) ([]GPUDetail, error) {
+	stdout, _, err := runCommand(ctx, "nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits")
+	if err != nil {
+		return nil, err
+	}
+	return parseNVIDIAGPUDetails(stdout), nil
+}
+
+func parseNVIDIAGPUDetails(raw string) []GPUDetail {
+	var details []GPUDetail
+	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		vramMiB, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+		driver := ""
+		if len(parts) > 2 {
+			driver = strings.TrimSpace(parts[2])
+		}
+		details = append(details, GPUDetail{
+			Vendor:        "nvidia",
+			Name:          name,
+			VRAMGB:        int(float64(vramMiB)/1024.0 + 0.5),
+			DriverVersion: driver,
+		})
+	}
+	return details
+}
+
 func hostname() string {
 	name, err := os.Hostname()
 	if err != nil {
@@ -451,6 +534,48 @@ func runtimeAvailability(ctx context.Context, runtimeName string) string {
 	return i18n.T("available: %s", trimmed)
 }
 
+func dockerComposeAvailability(ctx context.Context) string {
+	stdout, stderr, err := runCommand(ctx, "docker", "compose", "version")
+	if err == nil {
+		trimmed := strings.TrimSpace(stdout)
+		if trimmed == "" {
+			return i18n.T("available")
+		}
+		return i18n.T("available: %s", trimmed)
+	}
+	stdout, stderr, err = runCommand(ctx, "docker-compose", "version")
+	if err != nil {
+		return formatUnknown("docker compose", err, stderr)
+	}
+	trimmed := strings.TrimSpace(stdout)
+	if trimmed == "" {
+		return i18n.T("available")
+	}
+	return i18n.T("available: %s", trimmed)
+}
+
+func dockerComposeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutput) (string, []RawCommandOutput) {
+	stdout, stderr, err := runCommand(ctx, "docker", "compose", "version")
+	rawOutputs = append(rawOutputs, newRawOutput("docker compose version", stdout, stderr, err))
+	if err == nil {
+		trimmed := strings.TrimSpace(stdout)
+		if trimmed == "" {
+			return i18n.T("available"), rawOutputs
+		}
+		return i18n.T("available: %s", trimmed), rawOutputs
+	}
+	stdout, stderr, err = runCommand(ctx, "docker-compose", "version")
+	rawOutputs = append(rawOutputs, newRawOutput("docker-compose version", stdout, stderr, err))
+	if err != nil {
+		return formatUnknown("docker compose", err, stderr), rawOutputs
+	}
+	trimmed := strings.TrimSpace(stdout)
+	if trimmed == "" {
+		return i18n.T("available"), rawOutputs
+	}
+	return i18n.T("available: %s", trimmed), rawOutputs
+}
+
 func runtimeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutput, runtimeName string) (string, []RawCommandOutput) {
 	stdout, stderr, err := runCommand(ctx, runtimeName, "version")
 	rawOutputs = append(rawOutputs, newRawOutput(fmt.Sprintf("%s version", runtimeName), stdout, stderr, err))
@@ -466,6 +591,55 @@ func runtimeAvailabilityWithRaw(ctx context.Context, rawOutputs []RawCommandOutp
 
 func runtimeCapabilities(dockerStatus, podmanStatus string) string {
 	return i18n.T("docker=%s; podman=%s", dockerStatus, podmanStatus)
+}
+
+func isRuntimeAvailable(status string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(status))
+	return strings.HasPrefix(trimmed, "available")
+}
+
+func parseGPUEntries(raw string) []string {
+	candidates := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == ';'
+	})
+	entries := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed == "" || strings.HasPrefix(strings.ToLower(trimmed), "unknown:") {
+			continue
+		}
+		entries = append(entries, trimmed)
+	}
+	return entries
+}
+
+func guessGPUVendor(name string) string {
+	lower := strings.ToLower(name)
+	if strings.Contains(lower, "nvidia") || strings.Contains(lower, "tesla") || strings.Contains(lower, "rtx") || strings.Contains(lower, "gtx") {
+		return "nvidia"
+	}
+	if strings.Contains(lower, "apple") || strings.Contains(lower, "metal") {
+		return "apple"
+	}
+	if strings.Contains(lower, "amd") || strings.Contains(lower, "radeon") {
+		return "amd"
+	}
+	return ""
+}
+
+func inferVRAMGBFromName(name string) int {
+	fields := strings.FieldsFunc(strings.ToLower(name), func(r rune) bool {
+		return r == '-' || r == '_' || r == ' ' || r == '(' || r == ')' || r == ','
+	})
+	for _, field := range fields {
+		if strings.HasSuffix(field, "gb") {
+			value := strings.TrimSuffix(field, "gb")
+			if parsed, err := strconv.Atoi(value); err == nil {
+				return parsed
+			}
+		}
+	}
+	return 0
 }
 
 func extractIP(addr net.Addr) string {

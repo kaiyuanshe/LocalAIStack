@@ -122,7 +122,7 @@ func DefaultConfig() *Config {
 		},
 		LLM: LLMConfig{
 			Provider:       "siliconflow",
-			Model:          "deepseek-ai/DeepSeek-V3.2",
+			Model:          "deepseek-ai/DeepSeek-V4-Flash",
 			BaseURL:        "https://api.siliconflow.cn/v1/chat/completions",
 			TimeoutSeconds: 30,
 		},

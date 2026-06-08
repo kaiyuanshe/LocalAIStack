@@ -47,6 +47,9 @@ func init() {
 	commands.RegisterProviderCommands(rootCmd)
 	commands.RegisterFailureCommands(rootCmd)
 	commands.RegisterSystemCommands(rootCmd)
+	commands.RegisterRecipeCommands(rootCmd)
+	commands.RegisterExpressCommands(rootCmd)
+	commands.RegisterExpertCommands(rootCmd)
 	commands.RegisterInitCommand(rootCmd)
 }
 
@@ -92,16 +95,16 @@ func localizeCommand(cmd *cobra.Command) {
 		return
 	}
 	if cmd.Short != "" {
-		cmd.Short = i18n.T(cmd.Short)
+		cmd.Short = i18n.Key(cmd.Short)
 	}
 	if cmd.Long != "" {
-		cmd.Long = i18n.T(cmd.Long)
+		cmd.Long = i18n.Key(cmd.Long)
 	}
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		flag.Usage = i18n.T(flag.Usage)
+		flag.Usage = i18n.Key(flag.Usage)
 	})
 	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
-		flag.Usage = i18n.T(flag.Usage)
+		flag.Usage = i18n.Key(flag.Usage)
 	})
 	for _, sub := range cmd.Commands() {
 		localizeCommand(sub)

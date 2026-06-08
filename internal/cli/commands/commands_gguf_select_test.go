@@ -48,4 +48,3 @@ func TestResolveGGUFFile_QuantSelectorPrefersFirstShard(t *testing.T) {
 		t.Fatalf("unexpected chosen file: got %s, want %s", chosen, want)
 	}
 }
-

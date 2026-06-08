@@ -44,7 +44,7 @@ Common non-interactive form:
   --api-key "$API_KEY" \
   --language en \
   --assistant-provider siliconflow \
-  --assistant-model deepseek-ai/DeepSeek-V3.2
+  --assistant-model deepseek-ai/DeepSeek-V4-Flash
 ```
 
 Important flags:

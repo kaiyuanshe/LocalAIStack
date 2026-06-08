@@ -9,10 +9,24 @@ import (
 )
 
 type BaseInfoSummary struct {
-	CPUCores int
-	MemoryKB int64
-	GPUName  string
-	GPUCount int
+	OS                     string
+	Arch                   string
+	CPUCores               int
+	MemoryKB               int64
+	GPUName                string
+	GPUCount               int
+	GPUs                   []string
+	GPUDetails             []BaseInfoGPU
+	DockerAvailable        bool
+	DockerComposeAvailable bool
+	MetalAvailable         bool
+}
+
+type BaseInfoGPU struct {
+	Vendor        string `json:"vendor,omitempty"`
+	Name          string `json:"name"`
+	VRAMGB        int    `json:"vram_gb,omitempty"`
+	DriverVersion string `json:"driver_version,omitempty"`
 }
 
 func LoadBaseInfoSummary(path string) (BaseInfoSummary, error) {
@@ -57,6 +71,7 @@ func LoadBaseInfoSummary(path string) (BaseInfoSummary, error) {
 	if len(gpuEntries) > 0 {
 		summary.GPUName = gpuEntries[0]
 		summary.GPUCount = len(gpuEntries)
+		summary.GPUs = gpuEntries
 	}
 
 	if summary.GPUCount == 0 && summary.GPUName != "" {
@@ -71,18 +86,43 @@ func parseJSONBaseInfoSummary(raw []byte) (BaseInfoSummary, bool) {
 	}
 
 	var compact struct {
-		CPU struct {
+		OS   string `json:"os"`
+		Arch string `json:"arch"`
+		CPU  struct {
 			Cores int `json:"cores"`
 		} `json:"cpu"`
-		GPU    string `json:"gpu"`
-		Memory string `json:"memory"`
+		GPU        string        `json:"gpu"`
+		GPUDetails []BaseInfoGPU `json:"gpu_details"`
+		Memory     string        `json:"memory"`
+		Runtime    struct {
+			DockerAvailable        bool `json:"docker_available"`
+			DockerComposeAvailable bool `json:"docker_compose_available"`
+			MetalAvailable         bool `json:"metal_available"`
+		} `json:"runtime"`
 	}
 	if err := json.Unmarshal(raw, &compact); err == nil {
 		summary := BaseInfoSummary{
-			CPUCores: compact.CPU.Cores,
-			MemoryKB: parseMemoryToKB(compact.Memory),
+			OS:                     strings.TrimSpace(compact.OS),
+			Arch:                   strings.TrimSpace(compact.Arch),
+			CPUCores:               compact.CPU.Cores,
+			MemoryKB:               parseMemoryToKB(compact.Memory),
+			GPUDetails:             compact.GPUDetails,
+			DockerAvailable:        compact.Runtime.DockerAvailable,
+			DockerComposeAvailable: compact.Runtime.DockerComposeAvailable,
+			MetalAvailable:         compact.Runtime.MetalAvailable,
 		}
-		setGPUSummary(&summary, compact.GPU)
+		if len(compact.GPUDetails) > 0 {
+			entries := make([]string, 0, len(compact.GPUDetails))
+			for _, gpu := range compact.GPUDetails {
+				if strings.TrimSpace(gpu.Name) != "" {
+					entries = append(entries, strings.TrimSpace(gpu.Name))
+				}
+			}
+			setGPUEntries(&summary, entries)
+		}
+		if summary.GPUCount == 0 {
+			setGPUSummary(&summary, compact.GPU)
+		}
 		if summary.CPUCores > 0 || summary.MemoryKB > 0 || summary.GPUCount > 0 || strings.TrimSpace(compact.GPU) != "" {
 			return summary, true
 		}
@@ -112,7 +152,7 @@ func parseMemoryToKB(value string) int64 {
 	if trimmed == "" {
 		return 0
 	}
-	re := regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*([kmgt]?i?b|bytes?)`)
+	re := regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*([kmgt]?i?b|bytes?|千字节)`)
 	match := re.FindStringSubmatch(trimmed)
 	if len(match) < 3 {
 		return 0
@@ -127,7 +167,7 @@ func parseMemoryToKB(value string) int64 {
 	switch unit {
 	case "b", "byte", "bytes":
 		return int64(number / 1024)
-	case "kb", "kib":
+	case "kb", "kib", "千字节":
 		return int64(number)
 	case "mb", "mib":
 		return int64(number * 1024)
@@ -145,8 +185,16 @@ func setGPUSummary(summary *BaseInfoSummary, raw string) {
 	if len(entries) == 0 {
 		return
 	}
+	setGPUEntries(summary, entries)
+}
+
+func setGPUEntries(summary *BaseInfoSummary, entries []string) {
+	if len(entries) == 0 {
+		return
+	}
 	summary.GPUName = entries[0]
 	summary.GPUCount = len(entries)
+	summary.GPUs = entries
 }
 
 func parseGPUEntries(raw string) []string {

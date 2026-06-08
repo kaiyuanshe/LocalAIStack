@@ -24,7 +24,7 @@ Smart run uses `llm.model` from config.
 
 Recommended default:
 
-1. `llm.model: deepseek-ai/DeepSeek-V3.2`
+1. `llm.model: deepseek-ai/DeepSeek-V4-Flash`
 
 Translation model configuration is not used in smart run.
 
@@ -125,9 +125,9 @@ GGUF tuning with batch auto-tune:
 
 ## 8. Proving DeepSeek Participation
 
-To prove `deepseek-ai/DeepSeek-V3.2` is involved in run planning:
+To prove `deepseek-ai/DeepSeek-V4-Flash` is involved in run planning:
 
-1. set `llm.model=deepseek-ai/DeepSeek-V3.2`
+1. set `llm.model=deepseek-ai/DeepSeek-V4-Flash`
 2. run with `--smart-run --smart-run-debug --smart-run-strict`
 3. confirm planner output shows `source=llm`
 4. verify provider-side logs by model and timestamp
