@@ -2,6 +2,7 @@ name: Temporary typos review export
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
