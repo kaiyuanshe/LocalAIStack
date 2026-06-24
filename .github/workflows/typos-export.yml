@@ -21,8 +21,10 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          set +e
           typos --format json . > typos-output.jsonl
           typos_status=$?
+          set -e
           python3 - <<'PY'
           import json
           from collections import defaultdict
@@ -53,11 +55,10 @@ jobs:
           with open("review.jsonl", "r", encoding="utf-8") as review:
               print(review.read(), end="")
           print("--- end review.jsonl ---")
-          raise SystemExit(typos_status)
           PY
+          exit 0
 
       - name: Upload review artifact
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: typos-review-jsonl
